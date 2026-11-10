@@ -1,0 +1,1136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Fuel Ledger</title>
+</head>
+<body>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: one narrow working column. The day's energy balance is the only raised panel; everything else sits flat on the page, separated by rules. */
+:root{
+  --bg:#F2F6F4; --surface:#FFFFFF; --ink:#11211E; --muted:#586966; --line:#D3DDD9; --soft:#E6EDEA;
+  --accent:#0C7A64; --accent-ink:#FFFFFF;
+  --pro:#0C7A64; --carb:#A9700F; --fat:#6A4BB0;
+  --good:#1B7F45; --warn:#B4500A; --bad:#B3261E;
+  --good-bg:#DDF1E4; --warn-bg:#FBE9D6; --info-bg:#E3EAF3; --info:#3A5683;
+  --display:"Space Grotesk","Segoe UI",system-ui,sans-serif;
+  --body:"Inter","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1413; --surface:#151F1D; --ink:#E5EEEB; --muted:#93A6A1; --line:#27352F; --soft:#1C2926;
+    --accent:#3CC4A4; --accent-ink:#06211B;
+    --pro:#3CC4A4; --carb:#E0A640; --fat:#A68BE8;
+    --good:#5FD08C; --warn:#F0A05A; --bad:#F2857C;
+    --good-bg:#16301F; --warn-bg:#3A2713; --info-bg:#1B2738; --info:#9DB7E0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1413; --surface:#151F1D; --ink:#E5EEEB; --muted:#93A6A1; --line:#27352F; --soft:#1C2926;
+  --accent:#3CC4A4; --accent-ink:#06211B;
+  --pro:#3CC4A4; --carb:#E0A640; --fat:#A68BE8;
+  --good:#5FD08C; --warn:#F0A05A; --bad:#F2857C;
+  --good-bg:#16301F; --warn-bg:#3A2713; --info-bg:#1B2738; --info:#9DB7E0;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+img{max-width:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:820px;margin:0 auto;padding-block:20px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-0.01em}
+h1{font-size:22px;font-weight:700}
+h2{font-size:18px;font-weight:600}
+h3{font-size:15px;font-weight:600}
+p{margin:0}
+.num{font-family:var(--display);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 16px}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sync{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.sync::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.sync[data-s="db"]::before{background:var(--good)}
+.sync[data-s="err"]::before{background:var(--bad)}
+nav.tabs{display:flex;gap:4px;background:var(--soft);padding:4px;border-radius:10px}
+nav.tabs a{padding:7px 14px;border-radius:7px;text-decoration:none;color:var(--muted);font-weight:500;font-size:14px}
+nav.tabs a[aria-current="page"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+#app{display:flex;flex-direction:column;gap:24px;min-width:0}
+.banner{background:var(--info-bg);color:var(--info);border-radius:10px;padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;font-size:14px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.icon{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:34px;height:34px;cursor:pointer;font-size:16px;line-height:1}
+input[type=text],input[type=number],input[type=search],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;width:100%}
+textarea{font-family:ui-monospace,Consolas,monospace;font-size:12px;min-height:110px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field>span{font-size:12px;color:var(--muted);font-weight:500}
+.empty{color:var(--muted);padding:18px 0}
+
+.daynav{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.daynav h2{flex:1;min-width:150px}
+
+.balance{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px}
+.bal-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:8px 20px}
+.big{font-family:var(--display);font-variant-numeric:tabular-nums;font-size:52px;font-weight:700;line-height:1;letter-spacing:-0.03em}
+.big small{font-size:16px;font-weight:500;color:var(--muted);letter-spacing:0;margin-left:6px}
+.big.over{color:var(--warn)}
+.eq{font-family:var(--display);font-variant-numeric:tabular-nums;color:var(--muted);font-size:15px;text-align:right}
+.eq b{color:var(--ink);font-weight:600}
+.bar{height:10px;background:var(--soft);border-radius:5px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:5px}
+.bar.over i{background:var(--warn)}
+.bar.sm{height:6px}
+.macros{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.macro{display:flex;flex-direction:column;gap:6px;min-width:0}
+.mrow{display:flex;justify-content:space-between;gap:8px;font-size:13px;flex-wrap:wrap}
+.mrow b{font-family:var(--display);font-variant-numeric:tabular-nums;font-weight:600}
+.bar.p i{background:var(--pro)} .bar.c i{background:var(--carb)} .bar.f i{background:var(--fat)}
+.basis{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:12px}
+.nudge{font-size:14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.nudge a{color:var(--accent)}
+
+.quick{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:flex-end}
+.quick .field{width:150px}
+.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer;padding:8px 0}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+
+.sec{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sec-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:8px}
+.sug{display:flex;flex-direction:column}
+.sug .s-item{display:flex;justify-content:space-between;gap:12px;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:9px 4px;cursor:pointer}
+.sug .s-item:hover{background:var(--soft)}
+.chat{display:flex;flex-direction:column;gap:8px;max-height:440px;overflow-y:auto}
+.msg{white-space:pre-wrap;padding:9px 12px;border-radius:10px;max-width:88%;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}
+.msg.assistant{align-self:flex-start;background:var(--soft)}
+.msg.note{align-self:center;font-size:12.5px;color:var(--muted);padding:0;text-align:center}
+#chat-q{flex:1;width:auto;min-width:160px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.sug .s-name{min-width:0}
+.sug .s-serv{color:var(--muted);font-size:13px}
+.sug .s-k{font-family:var(--display);font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--muted)}
+.pick{background:var(--soft);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.meal{display:flex;flex-direction:column}
+.meal-h{display:flex;justify-content:space-between;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:10px 0 4px}
+.entry{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px 12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.entry .e-sub{font-size:12.5px;color:var(--muted)}
+.entry .e-k{font-family:var(--display);font-variant-numeric:tabular-nums;font-weight:600}
+.x{background:none;border:0;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:4px 6px;border-radius:6px}
+.x:hover{color:var(--bad);background:var(--soft)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tile{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.tile .v{font-family:var(--display);font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;letter-spacing:-0.02em;line-height:1.15}
+.tile .v small{font-size:13px;color:var(--muted);font-weight:500;margin-left:4px;letter-spacing:0}
+.tile .d{font-size:12.5px;color:var(--muted)}
+.chart{width:100%;min-width:0}
+.chart svg{display:block;width:100%;height:auto}
+.chart text{font-family:var(--body);font-size:11px;fill:var(--muted)}
+.chart .g{stroke:var(--line);stroke-width:1}
+.chart .raw{fill:var(--muted);opacity:.55}
+.chart .trend{fill:none;stroke:var(--accent);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.chart .end{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.chart .goal{stroke:var(--fat);stroke-width:1.2;stroke-dasharray:5 4}
+.chart .goal-t{fill:var(--fat)}
+.chart .tgt{stroke:var(--ink);stroke-width:1.2;stroke-dasharray:5 4;opacity:.7}
+.chart .tgt-t{fill:var(--ink)}
+.chart .b{fill:var(--accent);opacity:.8}
+.chart .b.hi{fill:var(--warn)}
+.chart .b.now{opacity:.35}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px;background:var(--accent)}
+.legend i.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.legend i.gl{background:var(--fat)} .legend i.wn{background:var(--warn);height:8px;width:8px}
+.seg{display:inline-flex;background:var(--soft);padding:3px;border-radius:8px;gap:2px}
+.seg button{border:0;background:none;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink)}
+
+.adv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.pill{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:999px;align-self:start;margin-top:2px;white-space:nowrap}
+.pill.good{background:var(--good-bg);color:var(--good)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.info{background:var(--info-bg);color:var(--info)}
+.adv p{color:var(--muted);max-width:65ch;grid-column:2}
+.ask{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.ask-out{white-space:pre-wrap;max-width:70ch}
+.err{color:var(--bad);font-size:14px}
+details{border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;font-weight:500}
+details p{color:var(--muted);max-width:68ch;margin-top:8px;font-size:14px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+.kv div{display:flex;flex-direction:column}
+.kv b{font-family:var(--display);font-variant-numeric:tabular-nums;font-size:20px;font-weight:600}
+.foot{font-size:12.5px;color:var(--muted)}
+@media (max-width:520px){
+  .big{font-size:44px}
+  .eq{text-align:left}
+  .macros{grid-template-columns:1fr;gap:10px}
+  nav.tabs{width:100%} nav.tabs a{flex:1;text-align:center;padding:7px 6px}
+}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .25s ease}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Fuel Ledger</h1><span class="sync" id="sync" data-s="local">Starting up</span></div>
+    <div class="row" id="auth"></div>
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <a href="#today">Today</a><a href="#trends">Trends</a><a href="#coach">Coach</a><a href="#plan">Plan</a>
+    </nav>
+  </header>
+  <main id="app"><p class="empty">Loading your log…</p></main>
+  <p class="foot">Estimates, not medical advice. Food values are approximate per-serving figures; check a label when precision matters.</p>
+</div>
+
+<script src="/__/firebase/8.10.1/firebase-app.js"></script>
+<script src="/__/firebase/8.10.1/firebase-auth.js"></script>
+<script src="/__/firebase/8.10.1/firebase-firestore.js"></script>
+<script src="/__/firebase/init.js"></script>
+<script>
+"use strict";
+/* ---------- constants ---------- */
+const LB_KG = 0.45359237, KCAL_PER_LB = 3500, LS_KEY = "fuel-ledger-v1";
+const MEALS = ["Breakfast","Lunch","Dinner","Snacks"];
+const ACT = [[1.2,"Sedentary: desk job, little exercise"],[1.375,"Light: 1–3 sessions a week"],[1.55,"Moderate: 3–5 sessions a week"],[1.725,"Hard: 6–7 sessions a week"],[1.9,"Physical job plus training"]];
+const PACE = [[0.25,"0.25% of bodyweight / week · gentle"],[0.5,"0.5% / week · standard"],[0.75,"0.75% / week · assertive"],[1,"1.0% / week · aggressive"]];
+const PRO = [[0.7,"0.7 g/lb (1.6 g/kg)"],[0.8,"0.8 g/lb (1.8 g/kg)"],[1,"1.0 g/lb (2.2 g/kg)"],[1.2,"1.2 g/lb (2.6 g/kg)"]];
+// name, serving, kcal, protein, carbs, fat
+const FOODS = [
+["Chicken breast, cooked","4 oz",187,35,0,4],["Chicken thigh, cooked","4 oz",232,28,0,13],["Ground beef 90/10, cooked","4 oz",245,29,0,13],
+["Ground turkey 93/7, cooked","4 oz",200,27,0,10],["Steak, sirloin, cooked","6 oz",340,50,0,14],["Salmon, cooked","5 oz",290,31,0,18],
+["Tuna, canned in water","1 can (5 oz)",120,26,0,1],["Shrimp, cooked","4 oz",112,24,1,1],["Eggs, whole","2 large",143,13,1,10],
+["Egg whites","1 cup",126,26,2,0],["Greek yogurt, nonfat plain","1 cup",130,23,9,0.5],["Cottage cheese, 2%","1 cup",183,24,10,5],
+["Whey protein","1 scoop (30 g)",120,24,3,1.5],["Milk, 2%","1 cup",122,8,12,5],["Cheddar cheese","1 oz",114,7,0.5,9],
+["Tofu, firm","6 oz",150,17,4,9],["Black beans, cooked","1 cup",227,15,41,1],["Lentils, cooked","1 cup",230,18,40,1],
+["White rice, cooked","1 cup",205,4,45,0.4],["Brown rice, cooked","1 cup",216,5,45,2],["Oats, dry","1/2 cup (40 g)",150,5,27,3],
+["Pasta, cooked","1 cup",220,8,43,1.3],["Bread, whole wheat","2 slices",160,8,28,2],["Bagel, plain","1 medium",270,10,53,1.5],
+["Tortilla, flour","1 large (10 in)",210,6,35,5],["Potato, baked","1 medium",161,4,37,0.2],["Sweet potato, baked","1 medium",103,2,24,0.2],
+["Quinoa, cooked","1 cup",222,8,39,4],["Banana","1 medium",105,1,27,0.4],["Apple","1 medium",95,0.5,25,0.3],
+["Blueberries","1 cup",84,1,21,0.5],["Orange","1 medium",62,1,15,0.2],["Broccoli, cooked","1 cup",55,4,11,0.6],
+["Spinach, raw","2 cups",14,2,2,0.2],["Mixed salad greens","2 cups",20,2,4,0],["Avocado","1/2 medium",160,2,9,15],
+["Olive oil","1 tbsp",119,0,0,13.5],["Butter","1 tbsp",102,0,0,11.5],["Peanut butter","2 tbsp",190,7,7,16],
+["Almonds","1 oz",164,6,6,14],["Protein bar","1 bar",200,20,22,7],["Granola","1/2 cup",240,6,32,10],
+["Cereal with milk","1 bowl",220,8,40,4],["Pizza, cheese","1 slice",285,12,36,10],["Burger with cheese, quarter pound","1 burger",520,30,42,26],
+["French fries","1 medium",365,4,48,17],["Burrito bowl, chicken","1 bowl",650,45,65,22],["Sushi roll, salmon","8 pieces",300,13,45,7],
+["Grilled chicken sandwich","1 sandwich",380,30,40,10],["Coffee, black","1 cup",2,0,0,0],["Latte, 2% milk","12 oz",150,10,15,6],
+["Orange juice","1 cup",112,2,26,0.5],["Soda, regular","12 oz can",140,0,39,0],["Beer","12 oz",153,2,13,0],
+["Wine","5 oz",125,0,4,0],["Ice cream","1/2 cup",140,2,16,7],["Dark chocolate","1 oz",170,2,13,12],
+["Beef jerky","1 oz",80,11,5,1.5],["Hummus","2 tbsp",70,2,4,5],["Honey","1 tbsp",64,0,17,0]
+].map(f => ({name:f[0],serv:f[1],kcal:f[2],p:f[3],c:f[4],f:f[5]}));
+
+/* ---------- helpers ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const parseD = s => { const a = s.split("-").map(Number); return new Date(a[0], a[1] - 1, a[2]); };
+const today = () => ymd(new Date());
+const addDays = (s, n) => { const d = parseD(s); d.setDate(d.getDate() + n); return ymd(d); };
+const utc = s => { const a = s.split("-").map(Number); return Date.UTC(a[0], a[1] - 1, a[2]); };
+const diff = (a, b) => Math.round((utc(a) - utc(b)) / 864e5);
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const f1 = n => (Math.round(n * 10) / 10).toFixed(1);
+const r1 = n => Math.round(n * 10) / 10;
+const avg = a => a.reduce((s, v) => s + v, 0) / a.length;
+const stdev = a => { if (a.length < 2) return 0; const m = avg(a); return Math.sqrt(a.reduce((s, v) => s + (v - m) * (v - m), 0) / (a.length - 1)); };
+const uid6 = () => Math.random().toString(36).slice(2, 10);
+const longDate = s => parseD(s).toLocaleDateString("en-US", {weekday:"long", month:"short", day:"numeric"});
+const shortDate = s => parseD(s).toLocaleDateString("en-US", {month:"short", day:"numeric"});
+const fin = v => (typeof v === "number" && isFinite(v));
+
+/* ---------- state ---------- */
+const S = {profile:null, days:{}, demo:false};
+const UI = {tab:"today", date:today(), range:30, loading:true, pick:null, manual:false, qty:1, draft:null, formUnits:"us",
+            sample:null, tools:false, chat:[], pending:"", note:"", asking:false, ctl:null, arm:null, io:false, msg:"",
+            look:null, looking:false, lookErr:"", sug:[]};
+const metric = () => S.profile && S.profile.units === "metric";
+const wOut = lb => metric() ? lb * LB_KG : lb;
+const wIn = v => metric() ? v / LB_KG : v;
+const wu = () => metric() ? "kg" : "lb";
+
+/* ---------- storage: Claude account when available, this browser otherwise ---------- */
+const Store = {
+  col:null, queue:{}, status:"local",
+  readLocal(){ try { return JSON.parse(localStorage.getItem(LS_KEY)); } catch (e) { return null; } },
+  writeLocal(){ if (S.demo) return; try { localStorage.setItem(LS_KEY, JSON.stringify({profile:S.profile, days:S.days})); } catch (e) {} },
+  clearLocal(){ try { localStorage.removeItem(LS_KEY); } catch (e) {} },
+  put(id, data){
+    this.writeLocal();
+    if (S.demo || !this.col) return;
+    const q = this.queue[id] || (this.queue[id] = {busy:false, next:null});
+    q.next = {data: data ? JSON.parse(JSON.stringify(data)) : null};
+    if (!q.busy) this.flush(id);
+  },
+  async flush(id){
+    const q = this.queue[id]; q.busy = true;
+    while (q.next) {
+      const job = q.next; q.next = null;
+      try {
+        const ref = this.col.doc(id);
+        if (job.data) await ref.set(job.data); else await ref.delete();
+        setSync("db");
+      } catch (e) { setSync("err"); }
+    }
+    q.busy = false;
+  }
+};
+function setSync(s){
+  Store.status = s;
+  const el = $("#sync"); if (!el) return;
+  const st = S.demo ? "demo" : s;
+  el.dataset.s = st;
+  el.textContent = {demo:"Example data", db:"Synced to your Claude account", err:"Sync failed. Saved on this device", local:"Saved on this device"}[st];
+}
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej({code:"timeout"}), ms))]);
+
+/* ---------- day records ---------- */
+function getDay(d){ return S.days[d] || (S.days[d] = {date:d, weight:null, trained:false, entries:[]}); }
+function saveDay(d){
+  const day = S.days[d];
+  if (day && !day.weight && !day.trained && !day.entries.length) { delete S.days[d]; Store.put("d-" + d, null); }
+  else Store.put("d-" + d, day);
+}
+function totals(day){
+  const t = {k:0, p:0, c:0, f:0, n:0};
+  if (day) for (const e of day.entries) { t.k += e.kcal; t.p += e.p; t.c += e.c; t.f += e.f; t.n++; }
+  return t;
+}
+function mkEntry(food, qty, meal){
+  return {id:uid6(), name:food.name, serv:food.serv, qty:qty, meal:meal,
+          kcal:Math.round(food.kcal * qty), p:r1(food.p * qty), c:r1(food.c * qty), f:r1(food.f * qty)};
+}
+
+/* ---------- model ---------- */
+function trendSeries(){
+  const ds = Object.keys(S.days).filter(d => S.days[d].weight > 0).sort();
+  let t = null, prev = null;
+  return ds.map(d => {
+    const w = S.days[d].weight;
+    if (t === null) t = w; else t += (1 - Math.pow(0.8, Math.max(1, diff(d, prev)))) * (w - t);
+    prev = d; return {date:d, w:w, t:t};
+  });
+}
+function ols(pts){
+  const n = pts.length, mx = avg(pts.map(p => p.x)), my = avg(pts.map(p => p.y));
+  let sxx = 0, sxy = 0;
+  for (const p of pts) { sxx += (p.x - mx) * (p.x - mx); sxy += (p.x - mx) * (p.y - my); }
+  const b = sxx ? sxy / sxx : 0, a = my - b * mx;
+  let ss = 0; for (const p of pts) { const r = p.y - (a + b * p.x); ss += r * r; }
+  const se = (n > 2 && sxx) ? Math.sqrt(ss / (n - 2) / sxx) : 0;
+  return {a:a, b:b, se:se};
+}
+function compute(){
+  const p = S.profile, T = today(), tr = trendSeries();
+  const cur = tr.length ? tr[tr.length - 1].t : p.startWeight;
+  const bmr = 10 * cur * LB_KG + 6.25 * p.heightIn * 2.54 - 5 * p.age + (p.sex === "m" ? 5 : -161);
+  const formula = bmr * p.activity;
+  const from = addDays(T, -28);
+  const pts = tr.filter(x => x.date >= from && x.date <= T).map(x => ({x:diff(x.date, from), y:x.w}));
+  const span = pts.length ? pts[pts.length - 1].x - pts[0].x : 0;
+  const intakes = [], wkend = [], wkday = [];
+  for (let i = 28; i >= 1; i--) {
+    const d = addDays(T, -i), t = totals(S.days[d]);
+    if (t.n > 0) { intakes.push(t.k); const dow = parseD(d).getDay(); (dow === 0 || dow === 6 ? wkend : wkday).push(t.k); }
+  }
+  let est = null, slopeWk = null;
+  if (pts.length >= 4 && span >= 7) slopeWk = ols(pts).b * 7;
+  if (pts.length >= 5 && span >= 10 && intakes.length >= 7) {
+    const o = ols(pts), mean = avg(intakes), sd = stdev(intakes);
+    const raw = mean - o.b * KCAL_PER_LB;
+    const se = Math.sqrt(Math.pow(KCAL_PER_LB * o.se, 2) + sd * sd / intakes.length);
+    const n = Math.min(intakes.length, span), w = n / (n + 14);
+    const value = Math.min(Math.max(raw, formula * 0.6), formula * 1.5);
+    est = {raw:raw, value:value, se:se, w:w, mean:mean, n:n, outOfRange:value !== raw};
+  }
+  const auto = est ? est.w * est.value + (1 - est.w) * formula : formula;
+  const override = fin(p.tdeeOverride) ? p.tdeeOverride : null;
+  const tdee = override || auto;
+  const gap = p.goalWeight - cur, dir = gap < -1 ? -1 : gap > 1 ? 1 : 0;
+  const rate = dir * (p.pacePct / 100) * cur * (dir > 0 ? 0.5 : 1); // lb per week, signed; gain runs at half pace
+  const floor = p.sex === "m" ? 1500 : 1200;
+  let kcal = tdee + rate * KCAL_PER_LB / 7;
+  const floorHit = kcal < floor; if (floorHit) kcal = floor;
+  kcal = Math.round(kcal / 10) * 10;
+  const proRef = dir < 0 ? p.goalWeight : cur;
+  const pro = Math.round(p.proteinPerLb * proRef);
+  const fat = Math.round(Math.max(0.3 * cur, kcal * 0.2 / 9));
+  const carb = Math.max(0, Math.round((kcal - pro * 4 - fat * 9) / 4));
+  const k7 = [], p7 = [];
+  for (let i = 7; i >= 1; i--) { const t = totals(S.days[addDays(T, -i)]); if (t.n > 0) { k7.push(t.k); p7.push(t.p); } }
+  let log14 = 0, w7 = 0, sess7 = 0;
+  for (let i = 14; i >= 1; i--) if (totals(S.days[addDays(T, -i)]).n > 0) log14++;
+  for (let i = 6; i >= 0; i--) { const d = S.days[addDays(T, -i)]; if (d && d.weight > 0) w7++; if (d && d.trained) sess7++; }
+  let eta = null;
+  if (dir !== 0 && rate !== 0) { const weeks = Math.abs(gap / rate); eta = {weeks:weeks, date:addDays(T, Math.round(weeks * 7))}; }
+  const C = {T:T, tr:tr, cur:cur, hasWeight:tr.length > 0, bmr:bmr, formula:formula, est:est, tdee:tdee, auto:auto, override:override, slopeWk:slopeWk, dir:dir, rate:rate,
+    floor:floor, floorHit:floorHit, t:{kcal:kcal, p:pro, c:carb, f:fat}, n7:k7.length, avg7:k7.length ? avg(k7) : 0, pro7:p7.length ? avg(p7) : 0,
+    log14:log14, w7:w7, sess7:sess7, nW:pts.length, span:span, nLog:intakes.length, eta:eta,
+    wkend:wkend.length ? {n:wkend.length, avg:avg(wkend)} : null, wkday:wkday.length ? {n:wkday.length, avg:avg(wkday)} : null};
+  C.adv = advise(C);
+  return C;
+}
+function advise(C){
+  const p = S.profile, T = C.t, A = [], u = wu();
+  const add = (sev, title, body) => A.push({sev:sev, title:title, body:body});
+  if (C.floorHit) add("warn", "Target held at the " + fmt(C.floor) + " kcal floor", "Your chosen pace would put intake below " + fmt(C.floor) + " kcal, so the target stops there and loss will run slower than planned. Pick a gentler pace or add activity. Eating less than this is not the fix.");
+  if (C.dir === 0) add("good", "You are at your goal weight", "Trend weight is within 1 lb of your goal, so the target is set to maintenance. Set a new goal in Plan if you want to keep moving.");
+  if (C.override) add("info", "Maintenance is set manually to " + fmt(C.override) + " kcal", "The automatic estimate is currently " + fmt(C.auto) + " kcal. The manual figure stays until you clear it in Plan, so it will not adapt as your data changes.");
+  else if (!C.est) {
+    const nl = Math.max(0, 7 - C.nLog), nw = Math.max(0, 5 - C.nW);
+    add("info", "Maintenance is a formula estimate for now", "It comes from your height, weight, age and activity level, and is commonly off by 10 to 15 percent. " +
+      (nl || nw ? "Log " + (nl ? nl + " more full day" + (nl > 1 ? "s" : "") + " of food" : "") + (nl && nw ? " and " : "") + (nw ? nw + " more weigh-in" + (nw > 1 ? "s" : "") : "") + ", spread over at least 10 days," : "Keep weighing in until your weigh-ins span 10 days,") +
+      " and the app switches to an estimate built from your own intake and weight change.");
+  } else {
+    const d = C.est.value - C.formula;
+    if (Math.abs(d) > 0.08 * C.formula) add("info", "Your data puts maintenance " + fmt(Math.abs(d)) + " kcal " + (d > 0 ? "above" : "below") + " the formula",
+      "Formula: " + fmt(C.formula) + " kcal. Your last " + C.est.n + " days: " + fmt(C.est.value) + " ± " + fmt(C.est.se) + " kcal. The target uses a blend weighted " + Math.round(C.est.w * 100) + "% toward your data, and that weight grows as you log more days.");
+    if (C.est.outOfRange) add("warn", "Logged intake and weight change do not reconcile", "Taken at face value they imply maintenance of " + fmt(C.est.raw) + " kcal, which is outside a plausible range. The usual causes are unlogged food, a short run of water-weight swings, or too few weigh-ins. The estimate is capped until the data settles.");
+  }
+  if (C.n7 >= 3) {
+    const d = (C.avg7 - T.kcal) / T.kcal, implied = (C.avg7 - C.tdee) * 7 / KCAL_PER_LB;
+    const impliedTxt = (implied > 0 ? "+" : "−") + f1(Math.abs(wOut(implied))) + " " + u + "/week";
+    if (Math.abs(d) <= 0.05) add("good", "Intake is on target", "Your last " + C.n7 + " logged days averaged " + fmt(C.avg7) + " kcal against a target of " + fmt(T.kcal) + ".");
+    else if (d > 0.05) add("warn", "Averaging " + fmt(C.avg7 - T.kcal) + " kcal over target", "Your last " + C.n7 + " logged days averaged " + fmt(C.avg7) + " kcal against " + fmt(T.kcal) + ". At that intake the expected pace is " + impliedTxt + (C.dir !== 0 ? ", against a plan of " + (C.rate > 0 ? "+" : "−") + f1(Math.abs(wOut(C.rate))) + "." : "."));
+    else if (d < -0.15) add("warn", "Eating " + fmt(T.kcal - C.avg7) + " kcal under target", "Your last " + C.n7 + " logged days averaged " + fmt(C.avg7) + " kcal. A deficit this far past plan costs lean mass and training quality. Bring intake back up toward " + fmt(T.kcal) + ". If days are only partly logged, that explains the gap instead.");
+    else add("info", "Slightly under target", "Averaging " + fmt(C.avg7) + " kcal against " + fmt(T.kcal) + ". Fine for a few days; do not let it widen.");
+    if (C.pro7 < 0.85 * T.p) add("warn", "Protein is " + Math.round(T.p - C.pro7) + " g a day short", "Averaging " + Math.round(C.pro7) + " g against a target of " + T.p + " g. Options that close most of that gap: 5 oz of chicken breast (44 g), a scoop of whey with a cup of Greek yogurt (47 g), or a can of tuna with two eggs (39 g).");
+    else add("good", "Protein target met", "Averaging " + Math.round(C.pro7) + " g against a target of " + T.p + " g.");
+  }
+  if (C.slopeWk !== null && C.dir !== 0) {
+    const obs = C.slopeWk, pct = obs / C.cur * 100;
+    const obsTxt = (obs > 0 ? "+" : "−") + f1(Math.abs(wOut(obs))) + " " + u + "/week", planTxt = (C.rate > 0 ? "+" : "−") + f1(Math.abs(wOut(C.rate))) + " " + u + "/week";
+    if (C.dir < 0) {
+      if (pct < -1) add("warn", "Losing faster than 1% of bodyweight a week", "Trend: " + obsTxt + " against a plan of " + planTxt + ". Sustained loss at this speed takes muscle along with fat. Early weeks often include water, so judge it over two or more weeks, then eat closer to target.");
+      else if (obs > C.rate * 0.5) add("info", "Loss is slower than planned", "Trend: " + obsTxt + " against a plan of " + planTxt + ". " + (C.est ? "The maintenance estimate already reflects this, so the target has adjusted. Hold it for two weeks before changing anything else." : "Keep logging. Once there is enough data the target will correct itself."));
+      else add("good", "Weight is moving at the planned pace", "Trend: " + obsTxt + " against a plan of " + planTxt + ".");
+    } else {
+      if (obs > C.rate * 2) add("warn", "Gaining faster than planned", "Trend: " + obsTxt + " against a plan of " + planTxt + ". Gain beyond the plan is mostly fat. Trim intake toward target.");
+      else if (obs < C.rate * 0.3) add("info", "Gain is slower than planned", "Trend: " + obsTxt + " against a plan of " + planTxt + ". Add 150 to 200 kcal a day, mostly carbohydrate around training.");
+      else add("good", "Weight is moving at the planned pace", "Trend: " + obsTxt + " against a plan of " + planTxt + ".");
+    }
+  }
+  if (C.wkend && C.wkday && C.wkend.n >= 2 && C.wkday.n >= 4 && C.wkend.avg > C.wkday.avg * 1.15) {
+    const d = C.wkend.avg - C.wkday.avg;
+    add("info", "Weekends run " + fmt(d) + " kcal above weekdays", "Weekend days average " + fmt(C.wkend.avg) + " kcal, weekdays " + fmt(C.wkday.avg) + ". Spread across the week that adds about " + fmt(d * 2 / 7) + " kcal a day.");
+  }
+  if (p.sessions > 0) {
+    if (C.sess7 >= p.sessions) add("good", "Training: " + C.sess7 + " of " + p.sessions + " sessions this week", "Resistance training is what keeps a deficit pulling from fat instead of muscle.");
+    else add("info", "Training: " + C.sess7 + " of " + p.sessions + " sessions in the last 7 days", "Consistency here matters more than any macro detail. Tick “Trained today” on the Today tab after each session.");
+  }
+  if (C.log14 < 10) add("info", "Food logged on " + C.log14 + " of the last 14 days", "Unlogged days are assumed to look like logged ones. If the missing days are the heavier ones, the maintenance estimate reads low and the target follows it down.");
+  if (C.w7 < 4) add("info", C.w7 + " weigh-in" + (C.w7 === 1 ? "" : "s") + " in the last 7 days", "Scale weight swings 1 to 3 lb a day from water and food volume. Four or more weigh-ins a week, at the same time each morning, lets the trend separate signal from noise.");
+  if (C.eta) add("info", "Goal of " + f1(wOut(p.goalWeight)) + " " + u + " around " + shortDate(C.eta.date), "That is " + Math.round(C.eta.weeks) + " weeks at the planned pace from a trend weight of " + f1(wOut(C.cur)) + " " + u + ".");
+  const rank = {warn:0, info:1, good:2};
+  return A.sort((a, b) => rank[a.sev] - rank[b.sev]);
+}
+
+/* ---------- example data shown before setup ---------- */
+function loadDemo(){
+  S.demo = true; S.days = {};
+  S.profile = {v:1, sex:"m", age:34, heightIn:71, activity:1.55, units:"us", goalWeight:195, pacePct:0.5, proteinPerLb:1, sessions:3, startWeight:212, foods:[]};
+  let seed = 11; const rnd = () => { seed = seed * 16807 % 2147483647; return seed / 2147483647; };
+  const F = n => FOODS.find(f => f.name === n);
+  const B = [[["Oats, dry",1.5],["Whey protein",1],["Banana",1]], [["Eggs, whole",2],["Bread, whole wheat",1],["Greek yogurt, nonfat plain",1]]];
+  const L = [[["Chicken breast, cooked",1.5],["White rice, cooked",1.5],["Broccoli, cooked",1],["Olive oil",1]], [["Burrito bowl, chicken",1]], [["Tuna, canned in water",1],["Bread, whole wheat",1],["Apple",1],["Almonds",1]]];
+  const D = [[["Salmon, cooked",1],["Potato, baked",1.5],["Mixed salad greens",1],["Olive oil",1]], [["Ground beef 90/10, cooked",1.5],["Pasta, cooked",2]], [["Steak, sirloin, cooked",1],["Sweet potato, baked",2],["Broccoli, cooked",1]]];
+  const N = [[["Protein bar",1]], [["Greek yogurt, nonfat plain",1],["Blueberries",1]], [["Peanut butter",1],["Apple",1]]];
+  const T = today(); let w = 212;
+  for (let i = 24; i >= 0; i--) {
+    const d = addDays(T, -i), dow = parseD(d).getDay(), day = {date:d, weight:null, trained:false, entries:[]};
+    const put = (set, meal) => set.forEach(x => day.entries.push(mkEntry(F(x[0]), x[1], meal)));
+    put(B[Math.floor(rnd() * B.length)], "Breakfast"); put(L[Math.floor(rnd() * L.length)], "Lunch");
+    if (i > 0) {
+      put(D[Math.floor(rnd() * D.length)], "Dinner"); put(N[Math.floor(rnd() * N.length)], "Snacks");
+      if (dow === 6 || dow === 0) put([["Pizza, cheese",2],["Beer",2]], "Dinner");
+      day.trained = (dow === 1 || dow === 3 || dow === 5) && i !== 8;
+    }
+    const k = i > 0 ? totals(day).k : 2400;
+    if (i === 16 || i === 9) day.entries = [];
+    if (i % 6 !== 4) day.weight = r1(w + (rnd() - 0.5) * 1.8);
+    w += (k - 2900) / KCAL_PER_LB;
+    S.days[d] = day;
+  }
+}
+
+/* ---------- views ---------- */
+function banner(){
+  return S.demo ? '<div class="banner"><span>You are looking at example data so you can see how the app works. None of it is yours.</span><a class="btn primary small" href="#plan">Set up my profile</a></div>' : "";
+}
+function todayView(C){
+  const d = UI.date, day = S.days[d], t = totals(day), T = C.t, left = T.kcal - t.k, over = left < 0;
+  const pct = (v, m) => Math.max(0, Math.min(100, m ? v / m * 100 : 0));
+  const macro = (cls, name, v, m) => '<div class="macro"><div class="mrow"><span>' + name + '</span><b>' + Math.round(v) + ' / ' + m + ' g</b></div><div class="bar sm ' + cls + '"><i style="width:' + pct(v, m) + '%"></i></div></div>';
+  const delta = C.t.kcal - C.tdee;
+  const basis = "Maintenance " + fmt(C.tdee) + " kcal (" + (C.override ? "set manually" : C.est ? Math.round(C.est.w * 100) + "% from your data" : "formula estimate") + ") · " +
+    (Math.abs(delta) < 25 ? "eating at maintenance" : "planned " + (delta < 0 ? "deficit " : "surplus ") + fmt(Math.abs(delta)) + " kcal");
+  const top = C.adv[0];
+  let h = '<section class="daynav"><button class="icon" data-act="prev" aria-label="Previous day">‹</button><h2>' + (d === C.T ? "Today, " + shortDate(d) : longDate(d)) + '</h2>' +
+    (d !== C.T ? '<button class="btn small" data-act="goToday">Back to today</button>' : "") +
+    '<button class="icon" data-act="next" aria-label="Next day"' + (d >= C.T ? " disabled" : "") + '>›</button></section>';
+  h += '<section class="balance"><div class="bal-head"><div><div class="label">' + (over ? "Over budget" : "Left to eat") + '</div><div class="big' + (over ? " over" : "") + '">' + fmt(Math.abs(left)) + '<small>kcal</small></div></div>' +
+    '<div class="eq"><b>' + fmt(T.kcal) + '</b> budget − <b>' + fmt(t.k) + '</b> eaten</div></div>' +
+    '<div class="bar' + (over ? " over" : "") + '" role="img" aria-label="' + fmt(t.k) + ' of ' + fmt(T.kcal) + ' kcal eaten"><i style="width:' + pct(t.k, T.kcal) + '%"></i></div>' +
+    '<div class="macros">' + macro("p", "Protein", t.p, T.p) + macro("c", "Carbs", t.c, T.c) + macro("f", "Fat", t.f, T.f) + '</div>' +
+    '<p class="basis">' + basis + '</p></section>';
+  if (top) h += '<p class="nudge"><span class="pill ' + top.sev + '">' + pillText(top.sev) + '</span><span>' + esc(top.title) + '. <a href="#coach">See all advice</a></span></p>';
+  h += '<section class="quick"><label class="field"><span>Morning weight (' + wu() + ')</span><input type="number" id="wt" inputmode="decimal" step="0.1" min="0" placeholder="e.g. ' + (metric() ? "92.5" : "204.0") + '" value="' + (day && day.weight ? f1(wOut(day.weight)) : "") + '"></label>' +
+    '<label class="check"><input type="checkbox" id="trained"' + (day && day.trained ? " checked" : "") + '> Trained today</label></section>';
+  h += '<section class="sec"><div class="sec-head"><h2>Add food</h2><button class="btn small ghost" data-act="toggleManual">' + (UI.manual ? "Search foods instead" : "Enter calories manually") + '</button></div>';
+  if (UI.manual) {
+    h += '<form class="pick" id="manual-form"><div class="grid"><label class="field" style="grid-column:1/-1"><span>Name</span><input type="text" id="m-name" maxlength="60" placeholder="e.g. Restaurant pad thai" required></label>' +
+      '<label class="field"><span>Calories</span><input type="number" id="m-kcal" inputmode="numeric" min="0" max="6000" required></label>' +
+      '<label class="field"><span>Protein (g)</span><input type="number" id="m-p" inputmode="decimal" min="0" step="0.1"></label>' +
+      '<label class="field"><span>Carbs (g)</span><input type="number" id="m-c" inputmode="decimal" min="0" step="0.1"></label>' +
+      '<label class="field"><span>Fat (g)</span><input type="number" id="m-f" inputmode="decimal" min="0" step="0.1"></label>' +
+      '<label class="field"><span>Meal</span>' + mealSelect("m-meal") + '</label></div>' +
+      '<div class="row"><label class="check"><input type="checkbox" id="m-save"> Save to my foods</label><button class="btn primary" type="submit">Add to log</button></div></form>';
+  } else if (UI.pick) {
+    const f = UI.pick;
+    h += '<form class="pick" id="pick-form"><div><h3>' + esc(f.name) + '</h3><span class="muted">' + esc(f.serv) + ' · ' + f.kcal + ' kcal · ' + f.p + ' g protein</span></div>' +
+      '<div class="grid"><label class="field"><span>Servings</span><input type="number" id="p-qty" inputmode="decimal" min="0.1" max="20" step="0.1" value="' + UI.qty + '"></label>' +
+      '<label class="field"><span>Meal</span>' + mealSelect("p-meal") + '</label></div>' +
+      '<div class="row"><button class="btn primary" type="submit">Add <span id="p-prev">' + Math.round(f.kcal * UI.qty) + '</span> kcal</button><button class="btn ghost" type="button" data-act="cancelPick">Cancel</button></div></form>';
+  } else {
+    h += '<input type="search" id="food-q" placeholder="Search foods, e.g. chicken, rice, eggs" autocomplete="off" aria-label="Search foods"><div class="sug" id="sug"></div>';
+  }
+  h += '</section><section class="sec"><div class="sec-head"><h2>Food log</h2><span class="muted num">' + fmt(t.k) + ' kcal · ' + t.n + ' item' + (t.n === 1 ? "" : "s") + '</span></div>';
+  if (!t.n) h += '<p class="empty">Nothing logged for this day yet. Search for a food above to start.</p>';
+  else for (const m of MEALS) {
+    const es = day.entries.filter(e => e.meal === m); if (!es.length) continue;
+    h += '<div class="meal"><div class="meal-h"><span>' + m + '</span><span class="num">' + fmt(es.reduce((s, e) => s + e.kcal, 0)) + ' kcal</span></div>';
+    for (const e of es) h += '<div class="entry"><div><div>' + esc(e.name) + '</div><div class="e-sub">' + (e.qty !== 1 ? e.qty + ' × ' : "") + esc(e.serv) + ' · P ' + e.p + ' · C ' + e.c + ' · F ' + e.f + '</div></div><div class="e-k">' + fmt(e.kcal) + '</div><button class="x" data-act="del" data-id="' + e.id + '" aria-label="Remove ' + esc(e.name) + '">×</button></div>';
+    h += '</div>';
+  }
+  return h + '</section>';
+}
+function defMeal(){
+  const hr = new Date().getHours() + new Date().getMinutes() / 60;
+  return hr < 10.5 ? "Breakfast" : hr < 15 ? "Lunch" : hr < 20.5 ? "Dinner" : "Snacks";
+}
+function mealSelect(id){
+  const def = defMeal();
+  return '<select id="' + id + '">' + MEALS.map(m => '<option' + (m === def ? " selected" : "") + '>' + m + '</option>').join("") + '</select>';
+}
+const pillText = s => ({good:"On track", warn:"Adjust", info:"Note"}[s]);
+function foodPool(){
+  const seen = new Set(), recents = [];
+  const dates = Object.keys(S.days).sort().reverse();
+  for (const d of dates) { for (const e of S.days[d].entries) { if (!seen.has(e.name) && e.qty) { seen.add(e.name); recents.push({name:e.name, serv:e.serv, kcal:Math.round(e.kcal / e.qty), p:r1(e.p / e.qty), c:r1(e.c / e.qty), f:r1(e.f / e.qty)}); } } if (recents.length >= 40) break; }
+  const mine = (S.profile.foods || []).filter(f => !seen.has(f.name)); mine.forEach(f => seen.add(f.name));
+  return {recents:recents, all:recents.concat(mine, FOODS.filter(f => !seen.has(f.name)))};
+}
+function renderSug(){
+  const box = $("#sug"), q = $("#food-q"); if (!box || !q) return;
+  const pool = foodPool(), raw = q.value.trim(), term = raw.toLowerCase();
+  const local = term ? pool.all.filter(f => term.split(/\s+/).every(w => f.name.toLowerCase().includes(w))).slice(0, 8) : pool.recents.slice(0, 6);
+  const est = (term && UI.look && UI.look.term === term) ? UI.look.list : null;
+  UI.sug = local.concat(est || []);
+  const btn = (f, i, tag) => '<button type="button" class="s-item" data-act="pick" data-i="' + i + '"><span class="s-name">' + esc(f.name) + ' <span class="s-serv">' + esc(f.serv) + (tag ? " · estimate" : "") + '</span></span><span class="s-k">' + f.kcal + ' kcal</span></button>';
+  let h = "";
+  if (local.length) h += (term ? "" : '<div class="meal-h"><span>Recent</span></div>') + local.map((f, i) => btn(f, i)).join("");
+  else if (!term) h += '<p class="empty">Start typing to search ' + FOODS.length + ' common foods' + (UI.sample ? ", or look up anything else with Claude" : "") + '. Foods you log show up here for one-tap re-entry.</p>';
+  else if (!est && !UI.looking) h += '<p class="empty">No match in the built-in list.' + (UI.sample ? "" : " Use “Enter calories manually” to add it.") + '</p>';
+  if (est) h += '<div class="meal-h"><span>Claude estimates for “' + esc(raw) + '”</span></div>' + (est.length ? est.map((f, i) => btn(f, local.length + i, 1)).join("") : '<p class="empty">Nothing found. Enter it manually.</p>');
+  if (term.length >= 2 && UI.sample && !est) h += UI.looking ? '<p class="empty">Looking up “' + esc(raw) + '”…</p>' : '<div class="row" style="padding-top:10px"><button type="button" class="btn small" data-act="lookup">Look up “' + esc(raw) + '” with Claude</button></div>';
+  if (UI.lookErr) h += '<p class="err">' + esc(UI.lookErr) + '</p>';
+  box.innerHTML = h;
+}
+async function lookup(){
+  const q = $("#food-q"), term = q ? q.value.trim() : "";
+  if (!term || !UI.sample || UI.looking) return;
+  UI.looking = true; UI.lookErr = ""; renderSug();
+  try {
+    const res = await UI.sample.json('Nutrition lookup. For the food query below, reply with only a JSON array of up to 6 objects {"name": string, "serv": string, "kcal": number, "p": number, "c": number, "f": number}: the most likely matching foods, including the brand or restaurant item if one is named, each for one typical serving. "serv" states that serving with a weight or volume. "p", "c", "f" are grams of protein, carbohydrate and fat. Use standard reference values (USDA, or the published brand or restaurant nutrition figures) as closely as you know them. If the query is not a food or drink, reply [].\n\nQuery: ' + term.slice(0, 120), {modelTier:"quick"});
+    const num = v => { const x = Number(v); return fin(x) && x >= 0 ? x : 0; };
+    const list = (Array.isArray(res) ? res : []).filter(o => o && typeof o.name === "string" && o.name.trim() && num(o.kcal) <= 5000)
+      .map(o => ({name:o.name.trim().slice(0, 80), serv:String(o.serv || "1 serving").slice(0, 40), kcal:Math.round(num(o.kcal)), p:r1(num(o.p)), c:r1(num(o.c)), f:r1(num(o.f))})).slice(0, 6);
+    UI.look = {term:term.toLowerCase(), list:list};
+  } catch (e) {
+    const code = e && e.code;
+    if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(code)) UI.sample = null;
+    else UI.lookErr = ASK_COPY[code] || "The lookup did not come back. Try again, or enter it manually.";
+  } finally { UI.looking = false; renderSug(); }
+}
+
+function trendsView(C){
+  const u = wu(), p = S.profile;
+  const tile = (label, v, unit, d) => '<div class="tile"><span class="label">' + label + '</span><span class="v">' + v + (unit ? '<small>' + unit + '</small>' : "") + '</span><span class="d">' + d + '</span></div>';
+  let h = '<section class="tiles">' +
+    tile("Maintenance", fmt(C.tdee), "kcal", C.override ? "Set manually · automatic estimate: " + fmt(C.auto) : C.est ? "Your data: " + fmt(C.est.value) + " ± " + fmt(C.est.se) + " · formula: " + fmt(C.formula) : "Formula estimate until more data is logged") +
+    tile("7-day intake", C.n7 ? fmt(C.avg7) : "–", C.n7 ? "kcal" : "", "Target " + fmt(C.t.kcal) + " · " + C.n7 + " day" + (C.n7 === 1 ? "" : "s") + " logged") +
+    tile("Trend weight", C.hasWeight ? f1(wOut(C.cur)) : "–", C.hasWeight ? u : "", C.slopeWk !== null ? (C.slopeWk > 0 ? "+" : "−") + f1(Math.abs(wOut(C.slopeWk))) + " " + u + " a week over 4 weeks" : "Weekly change appears after a week of weigh-ins") +
+    tile("Goal", f1(wOut(p.goalWeight)), u, C.eta ? "Around " + shortDate(C.eta.date) + " at planned pace" : C.dir === 0 ? "Reached. Holding at maintenance" : "") +
+    '</section>';
+  h += '<section class="sec"><div class="sec-head"><h2>Weight</h2><div class="seg" role="group" aria-label="Time range"><button data-act="range" data-r="30" aria-pressed="' + (UI.range === 30) + '">30 days</button><button data-act="range" data-r="90" aria-pressed="' + (UI.range === 90) + '">90 days</button></div></div>' +
+    '<div class="chart" id="ch-w"></div><div class="legend"><span><i class="dot"></i>Scale reading</span><span><i></i>Trend</span><span><i class="gl"></i>Goal</span></div></section>';
+  h += '<section class="sec"><div class="sec-head"><h2>Calories</h2><span class="muted">per day, against target</span></div><div class="chart" id="ch-k"></div><div class="legend"><span><i></i>Within target</span><span><i class="wn"></i>More than 10% over</span></div></section>';
+  h += '<details><summary>How maintenance is estimated</summary>' +
+    '<p>The starting figure is the Mifflin-St Jeor equation for resting energy use, multiplied by your activity level. Formulas like this are commonly off by 10 to 15 percent for an individual.</p>' +
+    '<p>Once you have at least 7 logged days and 5 weigh-ins spanning 10 days, the app also estimates maintenance from your own data over the last 28 days: average logged intake minus the energy implied by your weight change. Weight change is the least-squares slope through your scale readings, converted at 3,500 kcal per pound. The ± figure combines the standard error of that slope with the day-to-day spread in intake.</p>' +
+    '<p>The number the target uses is a weighted blend, with weight n / (n + 14) on your data, where n is days of evidence. At 14 days it is half data, at 28 days two thirds. Limits to know about: unlogged days are assumed to look like logged ones, the 3,500 kcal figure is a rule of thumb that overstates loss early in a diet, and water shifts can move the slope for a week or two.</p></details>';
+  return h;
+}
+function niceTicks(lo, hi, n){
+  const step0 = (hi - lo || 1) / n, mag = Math.pow(10, Math.floor(Math.log10(step0))), r = step0 / mag;
+  const step = (r < 1.5 ? 1 : r < 3 ? 2 : r < 7 ? 5 : 10) * mag, out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(6));
+  return out;
+}
+function xLabels(from, range, x, H, m){
+  let s = ""; const step = range <= 30 ? 7 : 21, T = today();
+  for (let i = 0; i < range; i += step) { const d = addDays(T, -i), px = x(d); if (px < m.l + 14) break; s += '<text x="' + px.toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? "end" : "middle") + '">' + shortDate(d) + '</text>'; }
+  return s;
+}
+function drawCharts(C){
+  const range = UI.range, T = C.T, from = addDays(T, -(range - 1));
+  const elW = $("#ch-w"), elK = $("#ch-k"); if (!elW || !elK) return;
+  const W = Math.max(280, Math.floor(elW.clientWidth || 680)), H = 230, m = {l:42, r:12, t:14, b:26};
+  const x = d => m.l + diff(d, from) / (range - 1) * (W - m.l - m.r);
+  // weight
+  const tr = C.tr.filter(p => p.date >= from);
+  if (tr.length < 2) elW.innerHTML = '<p class="empty">Log your morning weight on two or more days and the trend line appears here.</p>';
+  else {
+    const vals = []; tr.forEach(p => vals.push(wOut(p.w), wOut(p.t)));
+    let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    const g = wOut(S.profile.goalWeight), slack = wOut(10), showGoal = g >= lo - slack && g <= hi + slack;
+    if (showGoal) { lo = Math.min(lo, g); hi = Math.max(hi, g); }
+    const padv = Math.max(0.6, (hi - lo) * 0.12); lo -= padv; hi += padv;
+    const y = v => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Weight over the last ' + range + ' days">';
+    for (const v of niceTicks(lo, hi, 4)) s += '<line class="g" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/><text x="' + (m.l - 6) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end">' + v + '</text>';
+    if (showGoal) s += '<line class="goal" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(g).toFixed(1) + '" y2="' + y(g).toFixed(1) + '"/><text class="goal-t" x="' + (m.l + 6) + '" y="' + (y(g) - 5).toFixed(1) + '">goal ' + f1(g) + '</text>';
+    for (const p of tr) s += '<circle class="raw" cx="' + x(p.date).toFixed(1) + '" cy="' + y(wOut(p.w)).toFixed(1) + '" r="2.6"><title>' + shortDate(p.date) + ': ' + f1(wOut(p.w)) + ' ' + wu() + '</title></circle>';
+    s += '<polyline class="trend" points="' + tr.map(p => x(p.date).toFixed(1) + "," + y(wOut(p.t)).toFixed(1)).join(" ") + '"/>';
+    const last = tr[tr.length - 1];
+    s += '<circle class="end" cx="' + x(last.date).toFixed(1) + '" cy="' + y(wOut(last.t)).toFixed(1) + '" r="4.5"><title>Trend: ' + f1(wOut(last.t)) + ' ' + wu() + '</title></circle>';
+    elW.innerHTML = s + xLabels(from, range, x, H, m) + '</svg>';
+  }
+  // calories
+  const days = []; let maxK = C.t.kcal;
+  for (let i = range - 1; i >= 0; i--) { const d = addDays(T, -i), k = totals(S.days[d]).k; days.push({d:d, k:k}); if (k > maxK) maxK = k; }
+  if (!days.some(o => o.k > 0)) elK.innerHTML = '<p class="empty">Daily calorie totals appear here once you log food.</p>';
+  else {
+    const hi = maxK * 1.12, y = v => m.t + (1 - v / hi) * (H - m.t - m.b), bw = Math.max(2, (W - m.l - m.r) / range * 0.68);
+    let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Calories per day over the last ' + range + ' days">';
+    for (const v of niceTicks(0, hi, 4)) s += '<line class="g" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(v).toFixed(1) + '" y2="' + y(v).toFixed(1) + '"/><text x="' + (m.l - 6) + '" y="' + (y(v) + 4).toFixed(1) + '" text-anchor="end">' + fmt(v) + '</text>';
+    const span = (W - m.l - m.r - bw) / (range - 1);
+    days.forEach((o, i) => { if (o.k > 0) s += '<rect class="b' + (o.k > C.t.kcal * 1.1 ? " hi" : "") + (o.d === T ? " now" : "") + '" x="' + (m.l + i * span).toFixed(1) + '" y="' + y(o.k).toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(0, y(0) - y(o.k)).toFixed(1) + '" rx="1.5"><title>' + shortDate(o.d) + ': ' + fmt(o.k) + ' kcal</title></rect>'; });
+    s += '<line class="tgt" x1="' + m.l + '" x2="' + (W - m.r) + '" y1="' + y(C.t.kcal).toFixed(1) + '" y2="' + y(C.t.kcal).toFixed(1) + '"/><text class="tgt-t" x="' + (W - m.r - 4) + '" y="' + (y(C.t.kcal) - 5).toFixed(1) + '" text-anchor="end">target ' + fmt(C.t.kcal) + '</text>';
+    elK.innerHTML = s + xLabels(from, range, d => x(d) + bw / 2 * 0, H, m) + '</svg>';
+  }
+}
+
+function coachView(C){
+  let h = '<section class="sec"><div class="sec-head"><h2>What your numbers say</h2><span class="muted">Recalculated every time you log</span></div><div>';
+  for (const a of C.adv) h += '<div class="adv"><span class="pill ' + a.sev + '">' + pillText(a.sev) + '</span><h3>' + esc(a.title) + '</h3><p>' + esc(a.body) + '</p></div>';
+  h += '</div></section>';
+  if (UI.sample) {
+    h += '<section class="ask"><div><h2>Calibrate with Claude</h2><p class="muted">A chat that sees your profile, targets and last 15 days of logs. ' + (UI.tools ? "It can change your plan, set your maintenance figure, and log food or weight when you ask. " : "") + 'Uses your own Claude usage. The conversation is not saved after you close the page.</p></div>';
+    if (S.demo) h += '<p class="muted">Set up your profile in Plan first, so the chat has your own numbers to work with.</p>';
+    else {
+      if (UI.chat.length || UI.asking) h += '<div class="chat" id="chat">' + UI.chat.map(m => '<div class="msg ' + m.role + '">' + esc(m.content) + '</div>').join("") + (UI.asking ? '<div class="msg assistant" id="chat-live">' + esc(UI.pending || "Thinking…") + '</div>' : "") + '</div>';
+      else h += '<div class="chips">' + ["Give me a read of my last two weeks", "Is my activity level set right?", "My weight is not moving. Recalibrate my maintenance", "Log two eggs, toast and a latte for breakfast"].map(t => '<button class="btn small" data-act="chip">' + t + '</button>').join("") + '</div>';
+      h += '<form id="chat-form" class="row"><input type="text" id="chat-q" maxlength="500" autocomplete="off" aria-label="Message" placeholder="Ask a question, or tell it what you ate"><button class="btn primary" type="submit"' + (UI.asking ? " disabled" : "") + '>Send</button>' + (UI.asking ? '<button class="btn" type="button" data-act="stopAsk">Stop</button>' : "") + '</form>' +
+        (UI.note ? '<p class="err">' + esc(UI.note) + '</p>' : "");
+    }
+    h += '</section>';
+  }
+  return h;
+}
+
+function planView(C){
+  const setup = S.demo;
+  const p = UI.draft || (setup ? {sex:"m", age:NaN, heightIn:NaN, activity:1.375, units:"us", goalWeight:NaN, pacePct:0.5, proteinPerLb:1, sessions:3, weight:NaN} : Object.assign({}, S.profile));
+  const us = p.units !== "metric"; UI.formUnits = us ? "us" : "metric";
+  const nv = v => fin(v) ? v : "";
+  const wv = lb => fin(lb) ? (us ? r1(lb) : r1(lb * LB_KG)) : "";
+  const opt = (list, cur) => list.map(o => '<option value="' + o[0] + '"' + (Number(cur) === o[0] ? " selected" : "") + '>' + o[1] + '</option>').join("");
+  const ft = fin(p.heightIn) ? Math.floor(Math.round(p.heightIn) / 12) : "", inch = fin(p.heightIn) ? Math.round(p.heightIn) % 12 : "";
+  let h = '<section class="sec"><div class="sec-head"><h2>' + (setup ? "Set up your profile" : "Profile and goal") + '</h2></div>' +
+    (setup ? '<p class="muted">Six numbers and the app works out your maintenance calories, daily target and macros. Saving replaces the example data with your own log.</p>' : "") +
+    '<form id="plan-form" class="sec"><div class="grid">' +
+    '<label class="field"><span>Units</span><select id="pf-units"><option value="us"' + (us ? " selected" : "") + '>Pounds, feet</option><option value="metric"' + (us ? "" : " selected") + '>Kilograms, cm</option></select></label>' +
+    '<label class="field"><span>Sex (for the energy formula)</span><select id="pf-sex"><option value="m"' + (p.sex === "m" ? " selected" : "") + '>Male</option><option value="f"' + (p.sex === "f" ? " selected" : "") + '>Female</option></select></label>' +
+    '<label class="field"><span>Age</span><input type="number" id="pf-age" inputmode="numeric" min="18" max="90" value="' + nv(p.age) + '"></label>' +
+    (us ? '<label class="field"><span>Height (ft)</span><input type="number" id="pf-ft" inputmode="numeric" min="4" max="7" value="' + ft + '"></label><label class="field"><span>Height (in)</span><input type="number" id="pf-in" inputmode="numeric" min="0" max="11" value="' + inch + '"></label>'
+        : '<label class="field"><span>Height (cm)</span><input type="number" id="pf-cm" inputmode="numeric" min="130" max="230" value="' + (fin(p.heightIn) ? Math.round(p.heightIn * 2.54) : "") + '"></label>') +
+    (setup ? '<label class="field"><span>Current weight (' + (us ? "lb" : "kg") + ')</span><input type="number" id="pf-weight" inputmode="decimal" step="0.1" value="' + wv(p.weight) + '"></label>' : "") +
+    '<label class="field"><span>Goal weight (' + (us ? "lb" : "kg") + ')</span><input type="number" id="pf-goal" inputmode="decimal" step="0.1" value="' + wv(p.goalWeight) + '"></label>' +
+    '</div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">' +
+    '<label class="field"><span>Activity level</span><select id="pf-act">' + opt(ACT, p.activity) + '</select></label>' +
+    '<label class="field"><span>Pace toward goal</span><select id="pf-pace">' + opt(PACE, p.pacePct) + '</select></label>' +
+    '<label class="field"><span>Protein target</span><select id="pf-pro">' + opt(PRO, p.proteinPerLb) + '</select></label>' +
+    '<label class="field"><span>Training sessions per week</span><input type="number" id="pf-sess" inputmode="numeric" min="0" max="14" value="' + nv(p.sessions) + '"></label>' +
+    '</div><p class="err" id="pf-err"' + (UI.msg ? "" : " hidden") + '>' + esc(UI.msg) + '</p>' +
+    '<div class="row"><button class="btn primary" type="submit">' + (setup ? "Save and start logging" : "Save changes") + '</button></div></form></section>';
+  if (!setup) {
+    h += '<section class="sec"><div class="sec-head"><h2>Your current targets</h2></div><div class="kv">' +
+      '<div><span class="label">Maintenance</span><b>' + fmt(C.tdee) + '</b><span class="muted">kcal a day</span></div>' +
+      '<div><span class="label">Daily target</span><b>' + fmt(C.t.kcal) + '</b><span class="muted">kcal a day</span></div>' +
+      '<div><span class="label">Protein</span><b>' + C.t.p + ' g</b><span class="muted">' + Math.round(C.t.p * 4 / C.t.kcal * 100) + '% of calories</span></div>' +
+      '<div><span class="label">Carbs</span><b>' + C.t.c + ' g</b><span class="muted">' + Math.round(C.t.c * 4 / C.t.kcal * 100) + '%</span></div>' +
+      '<div><span class="label">Fat</span><b>' + C.t.f + ' g</b><span class="muted">' + Math.round(C.t.f * 9 / C.t.kcal * 100) + '%</span></div></div>' +
+      '<p class="muted">' + (C.dir < 0 ? "Losing" : C.dir > 0 ? "Gaining (at half the selected pace, to limit fat gain)" : "Maintaining") + (C.dir !== 0 ? " at " + f1(Math.abs(wOut(C.rate))) + " " + wu() + " a week." : ".") + " Targets move on their own as your weight and maintenance estimate change.</p>" +
+      (C.override ? '<div class="row"><span class="muted">Maintenance is set manually to ' + fmt(C.override) + ' kcal.</span><button class="btn small" data-act="clearOverride">Use the automatic estimate (' + fmt(C.auto) + ' kcal)</button></div>' : "") + "</section>";
+    const mine = S.profile.foods || [];
+    if (mine.length) { h += '<section class="sec"><div class="sec-head"><h2>My foods</h2></div><div>'; mine.forEach((f, i) => { h += '<div class="entry"><div><div>' + esc(f.name) + '</div><div class="e-sub">P ' + f.p + ' · C ' + f.c + ' · F ' + f.f + '</div></div><div class="e-k">' + f.kcal + '</div><button class="x" data-act="delFood" data-i="' + i + '" aria-label="Remove ' + esc(f.name) + '">×</button></div>'; }); h += '</div></section>'; }
+    h += '<section class="sec"><div class="sec-head"><h2>Your data</h2><button class="btn small" data-act="toggleIO">' + (UI.io ? "Hide" : "Back up or restore") + '</button></div>';
+    if (UI.io) h += '<p class="muted">This is your whole log as text. Copy it somewhere safe to back it up. To restore, paste a backup here and choose Replace.</p><textarea id="io" spellcheck="false" aria-label="Backup data">' + esc(JSON.stringify({profile:S.profile, days:S.days})) + '</textarea>' +
+      '<div class="row"><button class="btn" data-act="copyIO">Copy</button><button class="btn" data-act="importIO">' + (UI.arm === "import" ? "Click again to replace everything" : "Replace my data with this text") + '</button></div>' + (UI.ioMsg ? '<p class="muted">' + esc(UI.ioMsg) + '</p>' : "");
+    h += '<div class="row"><button class="btn danger" data-act="reset">' + (UI.arm === "reset" ? "Click again to erase everything" : "Erase all my data") + '</button></div></section>';
+  }
+  return h;
+}
+
+/* ---------- render ---------- */
+function render(){
+  const app = $("#app");
+  document.querySelectorAll("#tabs a").forEach(a => { if (a.getAttribute("href") === "#" + UI.tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  if (UI.loading) { app.innerHTML = '<p class="empty">Loading your log…</p>'; return; }
+  if (!S.profile) loadDemo();
+  setSync(Store.status);
+  const C = UI.C = compute();
+  if (UI.date > C.T) UI.date = C.T;
+  app.innerHTML = banner() + ({today:todayView, trends:trendsView, coach:coachView, plan:planView}[UI.tab])(C);
+  if (UI.tab === "trends") drawCharts(C);
+  if (UI.tab === "today") renderSug();
+  if (UI.tab === "coach") { const c = $("#chat"); if (c) c.scrollTop = c.scrollHeight; }
+}
+function route(){
+  const h = location.hash.slice(1);
+  UI.tab = ["today","trends","coach","plan"].includes(h) ? h : "today";
+  UI.msg = ""; UI.draft = null; UI.arm = null;
+  render();
+}
+
+/* ---------- plan form ---------- */
+function readPlan(){
+  const num = id => { const el = $("#" + id); return el && el.value !== "" ? parseFloat(el.value) : NaN; };
+  const was = UI.formUnits, us = was === "us";
+  const o = {units:$("#pf-units").value, sex:$("#pf-sex").value, age:num("pf-age"),
+    heightIn: us ? num("pf-ft") * 12 + (fin(num("pf-in")) ? num("pf-in") : 0) : num("pf-cm") / 2.54,
+    goalWeight: us ? num("pf-goal") : num("pf-goal") / LB_KG,
+    activity:num("pf-act"), pacePct:num("pf-pace"), proteinPerLb:num("pf-pro"), sessions:num("pf-sess")};
+  if ($("#pf-weight")) o.weight = us ? num("pf-weight") : num("pf-weight") / LB_KG;
+  return o;
+}
+function validatePlan(o, setup){
+  if (!fin(o.age) || o.age < 18 || o.age > 90) return "Enter an age between 18 and 90. The targets here are built for adults.";
+  if (!fin(o.heightIn) || o.heightIn < 51 || o.heightIn > 90) return "Enter your height.";
+  if (setup && (!fin(o.weight) || o.weight < 70 || o.weight > 700)) return "Enter your current weight.";
+  if (!fin(o.goalWeight) || o.goalWeight < 70 || o.goalWeight > 700) return "Enter a goal weight.";
+  const m = o.heightIn * 0.0254, bmi = o.goalWeight * LB_KG / (m * m);
+  if (bmi < 18.5) return "That goal is below the healthy range for your height (BMI under 18.5). Choose a goal of at least " + (o.units === "metric" ? f1(18.5 * m * m) + " kg" : Math.ceil(18.5 * m * m / LB_KG) + " lb") + ".";
+  if (!fin(o.sessions) || o.sessions < 0 || o.sessions > 14) return "Enter training sessions per week, from 0 to 14.";
+  return "";
+}
+function savePlan(){
+  const setup = S.demo, o = readPlan(), err = validatePlan(o, setup);
+  if (err) { UI.draft = o; UI.msg = err; render(); return; }
+  o.age = Math.round(o.age); o.sessions = Math.round(o.sessions); o.heightIn = r1(o.heightIn); o.goalWeight = r1(o.goalWeight);
+  if (setup) {
+    const w = r1(o.weight), T = today(); delete o.weight;
+    S.demo = false; S.days = {};
+    S.profile = Object.assign({v:1, startWeight:w, foods:[], createdAt:T}, o);
+    S.days[T] = {date:T, weight:w, trained:false, entries:[]};
+    Store.put("profile", S.profile); Store.put("d-" + T, S.days[T]);
+    if (!Store.col) setSync("local");
+    UI.draft = null; UI.msg = ""; UI.date = T;
+    if (location.hash !== "#today") location.hash = "today"; else route();
+  } else {
+    S.profile = Object.assign({}, S.profile, o);
+    Store.put("profile", S.profile);
+    UI.draft = null; UI.msg = ""; render();
+  }
+}
+
+/* ---------- coaching via Claude ---------- */
+const ASK_COPY = {rate_limited:"Claude is rate limited right now. Try again in a few minutes.", session_expired:"Sign in to Claude again, then retry.", refused:"Claude declined that question. Try rephrasing it.", prompt_too_large:"Too much data to send. Try again.", empty_completion:"No answer came back. Try a more specific question."};
+const CHAT_RULES = "You are the calibration assistant built into a calorie and weight tracker called Fuel Ledger. You help one person calibrate their plan: whether the maintenance (TDEE) figure, activity level, pace and protein target fit their data, what to change this week, and logging food or weight they describe. The DATA block below is their live tracker state; use its numbers. Rules: plain text only, no markdown, under 150 words unless asked for more. Use " + "UNIT" + " for weight. Null values mean nothing was logged that day. If the data is too thin to support a conclusion, say so and say what to log. Change settings or log things with the tools only when the user asks for it or agrees to it, then state exactly what changed with numbers. When estimating a described meal, log each item separately with realistic calories and macros. Never recommend intake below calorie_floor or loss faster than 1% of bodyweight per week. You are not a clinician; for medical conditions point them to one.";
+function coachData(C){
+  const p = S.profile, rows = [];
+  for (let i = 14; i >= 0; i--) { const d = addDays(C.T, -i), day = S.days[d], t = totals(day); rows.push({date:d, kcal:t.n ? Math.round(t.k) : null, protein_g:t.n ? Math.round(t.p) : null, carbs_g:t.n ? Math.round(t.c) : null, fat_g:t.n ? Math.round(t.f) : null, weight_lb:day && day.weight ? day.weight : null, trained:!!(day && day.trained)}); }
+  return {today:C.T, profile:{sex:p.sex, age:p.age, height_in:p.heightIn, activity_multiplier:p.activity, goal_weight_lb:p.goalWeight, pace_pct_bodyweight_per_week:p.pacePct, training_sessions_target:p.sessions, prefers_units:p.units},
+    trend_weight_lb:r1(C.cur), weekly_weight_change_lb:C.slopeWk === null ? null : r1(C.slopeWk), maintenance_kcal:Math.round(C.tdee), maintenance_formula_kcal:Math.round(C.formula),
+    maintenance_from_data:C.est ? {kcal:Math.round(C.est.value), std_error:Math.round(C.est.se), weight_in_blend:r1(C.est.w)} : null,
+    maintenance_automatic_kcal:Math.round(C.auto), maintenance_manual_override_kcal:C.override,
+    targets:C.t, calorie_floor:C.floor, today_is_partial:true, last_15_days:rows, rule_based_findings:C.adv.map(a => a.title)};
+}
+function chatTools(){
+  const note = t => UI.chat.push({role:"note", content:t});
+  const tgt = () => { const C = compute(); return {maintenance_kcal:Math.round(C.tdee), target_kcal:C.t.kcal, protein_g:C.t.p, carbs_g:C.t.c, fat_g:C.t.f}; };
+  const dateOf = v => { const s = String(v || ""), T = today(); return /^\d{4}-\d{2}-\d{2}$/.test(s) && s <= T && diff(T, s) <= 60 ? s : T; };
+  const num = v => { const x = Number(v); return fin(x) && x >= 0 ? x : 0; };
+  return [
+    {name:"update_plan", description:"Change the user's plan settings and save them. Pass only the fields to change. Returns the recalculated maintenance, calorie target and macros. Call only after the user asks for or agrees to the change.",
+     inputSchema:{type:"object", properties:{activity_multiplier:{type:"number", enum:[1.2,1.375,1.55,1.725,1.9]}, pace_pct_per_week:{type:"number", enum:[0.25,0.5,0.75,1]}, protein_g_per_lb:{type:"number", enum:[0.7,0.8,1,1.2]}, goal_weight_lb:{type:"number"}, sessions_per_week:{type:"integer"}}},
+     execute(i){
+       const o = Object.assign({}, S.profile), ch = [];
+       const pick = (key, list, field, label) => { if (i[key] === undefined || i[key] === null) return; const v = Number(i[key]); if (!list.some(a => a[0] === v)) throw new Error(key + " must be one of " + list.map(a => a[0]).join(", ")); o[field] = v; ch.push(label + " " + v); };
+       pick("activity_multiplier", ACT, "activity", "activity multiplier"); pick("pace_pct_per_week", PACE, "pacePct", "pace % per week"); pick("protein_g_per_lb", PRO, "proteinPerLb", "protein g/lb");
+       if (i.goal_weight_lb !== undefined && i.goal_weight_lb !== null) { const g = Number(i.goal_weight_lb), m = o.heightIn * 0.0254; if (!(g >= 70 && g <= 700) || g * LB_KG / (m * m) < 18.5) throw new Error("goal_weight_lb is out of range or below BMI 18.5 for this height; minimum is " + Math.ceil(18.5 * m * m / LB_KG) + " lb"); o.goalWeight = r1(g); ch.push("goal " + f1(wOut(g)) + " " + wu()); }
+       if (i.sessions_per_week !== undefined && i.sessions_per_week !== null) { const s = Math.round(Number(i.sessions_per_week)); if (!(s >= 0 && s <= 14)) throw new Error("sessions_per_week must be 0 to 14"); o.sessions = s; ch.push(s + " sessions a week"); }
+       if (!ch.length) throw new Error("No valid fields were given");
+       S.profile = o; Store.put("profile", o); note("Plan updated: " + ch.join(", ")); return tgt();
+     }},
+    {name:"set_maintenance", description:"Fix the maintenance (TDEE) figure at a set kcal value instead of the automatic estimate, or pass kcal 0 to return to the automatic estimate. Returns the recalculated targets. Use only when the user agrees and their logged data supports the figure.",
+     inputSchema:{type:"object", properties:{kcal:{type:"number"}}, required:["kcal"]},
+     execute(i){
+       const v = Number(i.kcal);
+       if (!v) { S.profile.tdeeOverride = null; note("Maintenance back to the automatic estimate"); }
+       else { if (!(v >= 1200 && v <= 6000)) throw new Error("kcal must be between 1200 and 6000, or 0 to clear"); S.profile.tdeeOverride = Math.round(v / 10) * 10; note("Maintenance set to " + fmt(S.profile.tdeeOverride) + " kcal"); }
+       Store.put("profile", S.profile); return tgt();
+     }},
+    {name:"log_food", description:"Add one food item to the user's food log. Give your best estimate of calories and macros for the amount eaten. Returns that day's totals after logging.",
+     inputSchema:{type:"object", properties:{name:{type:"string"}, kcal:{type:"number"}, protein_g:{type:"number"}, carbs_g:{type:"number"}, fat_g:{type:"number"}, meal:{type:"string", enum:MEALS}, date:{type:"string", description:"YYYY-MM-DD, defaults to today"}}, required:["name","kcal"]},
+     execute(i){
+       const name = String(i.name || "").trim().slice(0, 60), kcal = Number(i.kcal);
+       if (!name || !(kcal >= 0 && kcal <= 5000)) throw new Error("name and a kcal value between 0 and 5000 are required");
+       const d = dateOf(i.date), meal = MEALS.includes(i.meal) ? i.meal : defMeal();
+       getDay(d).entries.push(mkEntry({name:name, serv:"1 serving", kcal:Math.round(kcal), p:r1(num(i.protein_g)), c:r1(num(i.carbs_g)), f:r1(num(i.fat_g))}, 1, meal)); saveDay(d);
+       note("Logged " + name + ", " + fmt(kcal) + " kcal" + (d === today() ? "" : " on " + shortDate(d)));
+       const t = totals(S.days[d]); return {date:d, day_kcal:Math.round(t.k), day_protein_g:Math.round(t.p)};
+     }},
+    {name:"log_weight", description:"Record the user's scale weight in pounds for a day (defaults to today). Returns the updated trend weight.",
+     inputSchema:{type:"object", properties:{weight_lb:{type:"number"}, date:{type:"string", description:"YYYY-MM-DD, defaults to today"}}, required:["weight_lb"]},
+     execute(i){
+       const w = Number(i.weight_lb); if (!(w >= 70 && w <= 700)) throw new Error("weight_lb must be between 70 and 700");
+       const d = dateOf(i.date); getDay(d).weight = r1(w); saveDay(d);
+       note("Weight logged: " + f1(wOut(w)) + " " + wu() + (d === today() ? "" : " on " + shortDate(d)));
+       return {date:d, trend_weight_lb:r1(compute().cur)};
+     }}
+  ];
+}
+async function send(text){
+  if (UI.asking || !UI.sample || S.demo || !text) return;
+  UI.chat.push({role:"user", content:text.slice(0, 500)});
+  UI.asking = true; UI.pending = ""; UI.note = ""; UI.ctl = new AbortController(); render();
+  const lead = CHAT_RULES.replace("UNIT", metric() ? "kilograms" : "pounds") + "\n\nDATA (live, as of this message):\n" + JSON.stringify(coachData(compute()));
+  const turns = [{role:"user", content:lead}].concat(UI.chat.filter(m => m.role !== "note").slice(-12).map(m => ({role:m.role, content:m.content})));
+  const opts = {cache:false, signal:UI.ctl.signal, onText:u => { UI.pending = u.text; const o = $("#chat-live"); if (o) { o.textContent = u.text; const c = $("#chat"); if (c) c.scrollTop = c.scrollHeight; } }};
+  if (UI.tools) opts.tools = chatTools();
+  try {
+    const r = await UI.sample(turns, opts);
+    UI.chat.push({role:"assistant", content:r.text});
+    if (r.truncated) UI.note = "That answer was cut short. Ask a narrower question.";
+  } catch (e) {
+    const code = e && e.code;
+    if (e && e.text) UI.chat.push({role:"assistant", content:e.text});
+    if (["not_granted","sampling_disabled","not_declared","capability_disabled","capability_removed"].includes(code)) UI.sample = null;
+    else if (code === "tools_unavailable") { UI.tools = false; UI.note = "This view cannot let the chat make changes. Send your message again for advice only."; }
+    else if (code !== "cancelled") UI.note = ASK_COPY[code] || "Claude could not be reached. Try again in a moment.";
+  } finally { UI.asking = false; UI.pending = ""; UI.ctl = null; render(); const q = $("#chat-q"); if (q) q.focus(); }
+}
+
+/* ---------- events ---------- */
+function arm(name){ UI.arm = name; render(); setTimeout(() => { if (UI.arm === name) { UI.arm = null; if (UI.tab === "plan") render(); } }, 5000); }
+function replaceAll(profile, days){
+  const old = Object.keys(S.days);
+  S.profile = profile; S.days = days; S.demo = false;
+  for (const d of old) if (!days[d]) Store.put("d-" + d, null);
+  if (profile) { Store.put("profile", profile); for (const d of Object.keys(days)) Store.put("d-" + d, days[d]); }
+}
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act, d = UI.date;
+  if (act === "prev") { UI.date = addDays(d, -1); UI.pick = null; render(); }
+  else if (act === "next") { if (d < today()) UI.date = addDays(d, 1); UI.pick = null; render(); }
+  else if (act === "goToday") { UI.date = today(); render(); }
+  else if (act === "toggleManual") { UI.manual = !UI.manual; UI.pick = null; render(); const f = $(UI.manual ? "#m-name" : "#food-q"); if (f) f.focus(); }
+  else if (act === "pick") { UI.pick = UI.sug[+b.dataset.i]; UI.qty = 1; render(); const q = $("#p-qty"); if (q) { q.focus(); q.select(); } }
+  else if (act === "cancelPick") { UI.pick = null; render(); }
+  else if (act === "del") { const day = S.days[d]; if (day) { day.entries = day.entries.filter(e => e.id !== b.dataset.id); saveDay(d); render(); } }
+  else if (act === "range") { UI.range = +b.dataset.r; render(); }
+  else if (act === "stopAsk") { if (UI.ctl) UI.ctl.abort(); }
+  else if (act === "chip") send(b.textContent.trim());
+  else if (act === "lookup") lookup();
+  else if (act === "clearOverride") { S.profile.tdeeOverride = null; Store.put("profile", S.profile); render(); }
+  else if (act === "delFood") { S.profile.foods.splice(+b.dataset.i, 1); Store.put("profile", S.profile); render(); }
+  else if (act === "toggleIO") { UI.io = !UI.io; UI.ioMsg = ""; render(); }
+  else if (act === "copyIO") { const ta = $("#io"); const done = m => { UI.ioMsg = m; const keep = ta.value; render(); const t2 = $("#io"); if (t2) t2.value = keep; };
+    try { navigator.clipboard.writeText(ta.value).then(() => done("Copied."), () => { ta.select(); done("Select the text and copy it manually."); }); } catch (e) { ta.select(); } }
+  else if (act === "importIO") {
+    const txt = $("#io").value;
+    let o = null; try { o = JSON.parse(txt); } catch (e) {}
+    if (!o || !o.profile || !fin(o.profile.age) || !fin(o.profile.heightIn) || typeof o.days !== "object") { UI.ioMsg = "That text is not a Fuel Ledger backup. Nothing was changed."; UI.arm = null; render(); $("#io").value = txt; return; }
+    if (UI.arm !== "import") { arm("import"); const t2 = $("#io"); if (t2) t2.value = txt; return; }
+    UI.arm = null; replaceAll(o.profile, o.days || {}); UI.ioMsg = "Restored " + Object.keys(S.days).length + " days."; render();
+  }
+  else if (act === "reset") {
+    if (UI.arm !== "reset") { arm("reset"); return; }
+    UI.arm = null; const old = Object.keys(S.days);
+    for (const x of old) Store.put("d-" + x, null); Store.put("profile", null);
+    S.profile = null; S.days = {}; Store.clearLocal(); loadDemo(); UI.io = false; location.hash = "today"; route();
+  }
+});
+document.addEventListener("input", ev => {
+  if (ev.target.id === "food-q") { UI.lookErr = ""; renderSug(); }
+  else if (ev.target.id === "p-qty" && UI.pick) { const q = parseFloat(ev.target.value); const el = $("#p-prev"); if (el && q > 0) el.textContent = Math.round(UI.pick.kcal * q); }
+});
+document.addEventListener("change", ev => {
+  const id = ev.target.id, d = UI.date;
+  if (id === "wt") { const v = parseFloat(ev.target.value); const day = getDay(d); const lb = wIn(v); day.weight = (fin(lb) && lb >= 70 && lb <= 700) ? r1(lb) : null; saveDay(d); render(); }
+  else if (id === "trained") { getDay(d).trained = ev.target.checked; saveDay(d); render(); }
+  else if (id === "pf-units") { const o = readPlan(); UI.draft = o; UI.msg = ""; render(); }
+});
+document.addEventListener("submit", ev => {
+  ev.preventDefault();
+  const id = ev.target.id, d = UI.date;
+  if (id === "pick-form" && UI.pick) {
+    const q = parseFloat($("#p-qty").value); if (!(q > 0 && q <= 20)) return;
+    getDay(d).entries.push(mkEntry(UI.pick, r1(q), $("#p-meal").value)); saveDay(d); UI.pick = null; render(); const s = $("#food-q"); if (s) s.focus();
+  } else if (id === "manual-form") {
+    const n = v => { const x = parseFloat($("#" + v).value); return fin(x) && x >= 0 ? x : 0; };
+    const name = $("#m-name").value.trim(), kcal = n("m-kcal"); if (!name) return;
+    const food = {name:name, serv:"1 serving", kcal:Math.round(kcal), p:r1(n("m-p")), c:r1(n("m-c")), f:r1(n("m-f"))};
+    getDay(d).entries.push(mkEntry(food, 1, $("#m-meal").value)); saveDay(d);
+    if ($("#m-save").checked) { S.profile.foods = (S.profile.foods || []).filter(f => f.name !== name).concat([food]).slice(-200); Store.put("profile", S.profile); }
+    UI.manual = false; render();
+  } else if (id === "plan-form") savePlan();
+  else if (id === "chat-form") { const q = $("#chat-q"); send(q ? q.value.trim() : ""); }
+});
+window.addEventListener("hashchange", route);
+let rz = null;
+window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (UI.tab === "trends" && !UI.loading) drawCharts(UI.C); }, 150); });
+
+/* ---------- boot ---------- */
+async function boot(){
+  const h = location.hash.slice(1); if (["today","trends","coach","plan"].includes(h)) UI.tab = h;
+  const cached = Store.readLocal();
+  const hasCache = !!(cached && cached.profile);
+  if (hasCache) { S.profile = cached.profile; S.days = cached.days || {}; UI.loading = false; }
+  else if (!(window.claude && window.claude.use)) { loadDemo(); UI.loading = false; }
+  render();
+  if (!(window.claude && window.claude.use)) return;
+  try {
+    const caps = await Promise.all([claude.use("db"), claude.use("user"), claude.use("sample")]);
+    const db = caps[0], user = caps[1]; UI.sample = caps[2] || null;
+    if (UI.sample) { const lim = await UI.sample.limits().catch(() => null); UI.tools = !!(lim && lim.tools); }
+    const uid = user ? await user.id() : null;
+    if (db && uid) {
+      const col = db.collection("data/users/" + uid);
+      const snap = await withTimeout(col.limit(1000).get(), 10000);
+      let rp = null; const rd = {};
+      for (const doc of snap.docs) { const v = doc.data(); if (!v) continue; if (doc.id === "profile") rp = JSON.parse(JSON.stringify(v)); else if (doc.id.indexOf("d-") === 0) { const c = JSON.parse(JSON.stringify(v)); if (!Array.isArray(c.entries)) c.entries = []; rd[doc.id.slice(2)] = c; } }
+      Store.col = col; Store.status = "db";
+      if (rp) { S.profile = rp; S.days = rd; S.demo = false; Store.writeLocal(); }
+      else if (hasCache) { Store.put("profile", S.profile); for (const d of Object.keys(S.days)) Store.put("d-" + d, S.days[d]); }
+    }
+  } catch (e) { /* account storage unreachable: keep working from this device */ }
+  if (!S.profile) loadDemo();
+  UI.loading = false; render();
+}
+</script>
+<script>
+"use strict";
+/* ===== Hosted build: Google sign-in + Firestore storage, USDA food lookup, optional Claude chat with your own API key ===== */
+const CLAUDE_MODEL = "claude-sonnet-5-5";
+const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } };
+const lsSet = (k, v) => { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} };
+UI.user = null; UI.noBackend = false; UI.authErr = ""; UI.apiKey = ""; UI.fdcKey = "";
+
+Store.key = () => LS_KEY + ":" + (UI.user ? UI.user.uid : "anon");
+Store.readLocal = function(){ try { return JSON.parse(localStorage.getItem(this.key())); } catch (e) { return null; } };
+Store.writeLocal = function(){ if (S.demo || !UI.user) return; try { localStorage.setItem(this.key(), JSON.stringify({profile:S.profile, days:S.days})); } catch (e) {} };
+Store.clearLocal = function(){ try { localStorage.removeItem(this.key()); } catch (e) {} };
+
+function setSync(s){
+  Store.status = s;
+  const el = $("#sync"); if (!el) return;
+  const st = !UI.user ? "out" : S.demo ? "demo" : s;
+  el.dataset.s = st;
+  el.textContent = {out:"Not signed in", demo:"Example data", db:"Synced to your Google account", err:"Sync failed. Saved on this device", local:"Saved on this device only"}[st];
+}
+function renderAuth(){
+  const el = $("#auth"); if (!el) return;
+  if (UI.noBackend) el.innerHTML = "";
+  else if (UI.user) el.innerHTML = '<span class="muted" style="font-size:13px">' + esc(UI.user.displayName || UI.user.email || "Signed in") + '</span><button class="btn small" data-act="signout">Sign out</button>';
+  else el.innerHTML = '<button class="btn primary small" data-act="signin">Sign in with Google</button>';
+}
+const _render = render;
+render = function(){ _render(); renderAuth(); };
+
+function banner(){
+  if (UI.noBackend) return '<div class="banner"><span>This copy is not connected to Firebase yet, so sign-in is off and you are looking at example data. Run the deploy script, then open the web.app address it prints.</span></div>';
+  if (!UI.user) return '<div class="banner"><span>You are looking at example data. Sign in with Google to keep your own log, synced across your devices.' + (UI.authErr ? " " + esc(UI.authErr) : "") + '</span><button class="btn primary small" data-act="signin">Sign in with Google</button></div>';
+  return S.demo ? '<div class="banner"><span>You are signed in. This is still example data until you set up your profile.</span><a class="btn primary small" href="#plan">Set up my profile</a></div>' : "";
+}
+
+const _planView = planView;
+planView = function(C){
+  if (!UI.user) return '<section class="sec"><div class="sec-head"><h2>Set up your profile</h2></div><p class="muted">Sign in with Google first. Your profile and log are stored under your Google account, private to you.</p><div class="row"><button class="btn primary" data-act="signin"' + (UI.noBackend ? " disabled" : "") + '>Sign in with Google</button></div></section>';
+  return _planView(C) + '<section class="sec"><div class="sec-head"><h2>Connections</h2></div>' +
+    '<p class="muted">Both keys are optional and are stored only in this browser, never in your account.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">' +
+    '<label class="field"><span>Anthropic API key (turns on the calibration chat)</span><input type="password" id="k-claude" autocomplete="off" placeholder="sk-ant-…" value="' + esc(UI.apiKey) + '"></label>' +
+    '<label class="field"><span>USDA FoodData Central key (lifts the lookup rate limit)</span><input type="password" id="k-fdc" autocomplete="off" placeholder="Leave blank to use the shared demo key" value="' + esc(UI.fdcKey) + '"></label>' +
+    '</div><div class="row"><button class="btn" data-act="saveKeys">Save keys</button></div></section>';
+};
+
+/* ---------- food lookup: USDA FoodData Central ---------- */
+function fdcFood(f){
+  const ns = f.foodNutrients || [];
+  const get = (id, num) => { const x = ns.find(a => a.nutrientId === id || String(a.nutrientNumber) === num); return x && fin(Number(x.value)) ? Number(x.value) : null; };
+  const p = get(1003, "203") || 0, c = get(1005, "205") || 0, fat = get(1004, "204") || 0;
+  let kcal = get(1008, "208"); if (kcal === null) kcal = get(2047, "957"); if (kcal === null) kcal = get(2048, "958");
+  if (kcal === null) { if (!(p || c || fat)) return null; kcal = 4 * p + 4 * c + 9 * fat; }
+  const unit = String(f.servingSizeUnit || "").toLowerCase(), size = Number(f.servingSize);
+  const perServing = fin(size) && size > 0 && ["g","grm","ml","mlt"].includes(unit);
+  const k = perServing ? size / 100 : 1, u = unit.indexOf("m") === 0 ? "ml" : "g";
+  const serv = perServing ? (f.householdServingFullText ? String(f.householdServingFullText).toLowerCase() + " (" + r1(size) + " " + u + ")" : r1(size) + " " + u) : "100 g";
+  let name = String(f.description || "").trim(); if (!name) return null;
+  if (name === name.toUpperCase()) name = name.charAt(0) + name.slice(1).toLowerCase();
+  const brand = f.brandName || f.brandOwner; if (brand) name += " (" + String(brand).trim() + ")";
+  return {name:name.slice(0, 80), serv:serv.slice(0, 40), kcal:Math.round(kcal * k), p:r1(p * k), c:r1(c * k), f:r1(fat * k)};
+}
+async function lookup(){
+  const q = $("#food-q"), term = q ? q.value.trim() : "";
+  if (!term || UI.looking) return;
+  UI.looking = true; UI.lookErr = ""; renderSug();
+  try {
+    const r = await fetch("https://api.nal.usda.gov/fdc/v1/foods/search?api_key=" + encodeURIComponent(UI.fdcKey || "DEMO_KEY") + "&pageSize=8&dataType=" + encodeURIComponent("Foundation,SR Legacy,Branded") + "&query=" + encodeURIComponent(term.slice(0, 120)));
+    if (r.status === 429) throw {code:"rate"};
+    if (!r.ok) throw {code:"http"};
+    const j = await r.json();
+    UI.look = {term:term.toLowerCase(), list:(j.foods || []).map(fdcFood).filter(Boolean).slice(0, 8)};
+  } catch (e) {
+    UI.lookErr = e && e.code === "rate" ? "The shared USDA demo key is rate limited (about 30 lookups an hour). Add your own free key in Plan, or enter this one manually." : "The USDA database could not be reached. Try again, or enter it manually.";
+  } finally { UI.looking = false; renderSug(); }
+}
+function renderSug(){
+  const box = $("#sug"), q = $("#food-q"); if (!box || !q) return;
+  const pool = foodPool(), raw = q.value.trim(), term = raw.toLowerCase();
+  const local = term ? pool.all.filter(f => term.split(/\s+/).every(w => f.name.toLowerCase().includes(w))).slice(0, 8) : pool.recents.slice(0, 6);
+  const db = (term && UI.look && UI.look.term === term) ? UI.look.list : null;
+  UI.sug = local.concat(db || []);
+  const btn = (f, i) => '<button type="button" class="s-item" data-act="pick" data-i="' + i + '"><span class="s-name">' + esc(f.name) + ' <span class="s-serv">' + esc(f.serv) + '</span></span><span class="s-k">' + f.kcal + ' kcal</span></button>';
+  let h = "";
+  if (local.length) h += (term ? "" : '<div class="meal-h"><span>Recent</span></div>') + local.map((f, i) => btn(f, i)).join("");
+  else if (!term) h += '<p class="empty">Start typing to search your foods and ' + FOODS.length + ' common ones, then search the USDA database for anything else. Foods you log show up here for one-tap re-entry.</p>';
+  else if (!db && !UI.looking) h += '<p class="empty">No match in your foods or the built-in list.</p>';
+  if (db) h += '<div class="meal-h"><span>USDA FoodData Central</span></div>' + (db.length ? db.map((f, i) => btn(f, local.length + i)).join("") : '<p class="empty">Nothing found. Enter it manually.</p>');
+  if (term.length >= 2 && !db) h += UI.looking ? '<p class="empty">Searching the USDA database…</p>' : '<div class="row" style="padding-top:10px"><button type="button" class="btn small" data-act="lookup">Search the USDA database for “' + esc(raw) + '”</button></div>';
+  if (UI.lookErr) h += '<p class="err">' + esc(UI.lookErr) + '</p>';
+  box.innerHTML = h;
+}
+
+/* ---------- calibration chat: Claude API with the user's own key ---------- */
+function coachView(C){
+  let h = '<section class="sec"><div class="sec-head"><h2>What your numbers say</h2><span class="muted">Recalculated every time you log</span></div><div>';
+  for (const a of C.adv) h += '<div class="adv"><span class="pill ' + a.sev + '">' + pillText(a.sev) + '</span><h3>' + esc(a.title) + '</h3><p>' + esc(a.body) + '</p></div>';
+  h += '</div></section><section class="ask"><div><h2>Calibrate with Claude</h2><p class="muted">A chat that sees your profile, targets and last 15 days of logs. It can change your plan, set your maintenance figure, and log food or weight when you ask. The conversation is not saved after you close the page.</p></div>';
+  if (!UI.user || S.demo) h += '<p class="muted">Sign in and set up your profile first, so the chat has your own numbers to work with.</p>';
+  else if (!UI.apiKey) h += '<p class="muted">The chat runs on your own Anthropic API key. Add one under Plan, in Connections. Messages go straight from this browser to Anthropic and are billed to that key.</p><div class="row"><a class="btn" href="#plan">Add a key</a></div>';
+  else {
+    if (UI.chat.length || UI.asking) h += '<div class="chat" id="chat">' + UI.chat.map(m => '<div class="msg ' + m.role + '">' + esc(m.content) + '</div>').join("") + (UI.asking ? '<div class="msg assistant" id="chat-live">' + esc(UI.pending || "Thinking…") + '</div>' : "") + '</div>';
+    else h += '<div class="chips">' + ["Give me a read of my last two weeks", "Is my activity level set right?", "My weight is not moving. Recalibrate my maintenance", "Log two eggs, toast and a latte for breakfast"].map(t => '<button class="btn small" data-act="chip">' + t + '</button>').join("") + '</div>';
+    h += '<form id="chat-form" class="row"><input type="text" id="chat-q" maxlength="500" autocomplete="off" aria-label="Message" placeholder="Ask a question, or tell it what you ate"><button class="btn primary" type="submit"' + (UI.asking ? " disabled" : "") + '>Send</button>' + (UI.asking ? '<button class="btn" type="button" data-act="stopAsk">Stop</button>' : "") + '</form>' + (UI.note ? '<p class="err">' + esc(UI.note) + '</p>' : "");
+  }
+  return h + '</section>';
+}
+async function send(text){
+  if (UI.asking || !UI.apiKey || !UI.user || S.demo || !text) return;
+  UI.chat.push({role:"user", content:text.slice(0, 500)});
+  UI.asking = true; UI.pending = ""; UI.note = ""; UI.ctl = new AbortController(); render();
+  const system = CHAT_RULES.replace("UNIT", metric() ? "kilograms" : "pounds") + "\n\nDATA (live, as of this message):\n" + JSON.stringify(coachData(compute()));
+  let msgs = UI.chat.filter(m => m.role !== "note").slice(-12).map(m => ({role:m.role, content:m.content}));
+  while (msgs.length && msgs[0].role !== "user") msgs.shift();
+  const tools = chatTools(), apiTools = tools.map(t => ({name:t.name, description:t.description, input_schema:t.inputSchema}));
+  let out = "";
+  const show = () => { UI.pending = out; const o = $("#chat-live"); if (o) { o.textContent = out || "Thinking…"; const c = $("#chat"); if (c) c.scrollTop = c.scrollHeight; } };
+  try {
+    for (let round = 0; round < 6; round++) {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {method:"POST", signal:UI.ctl.signal,
+        headers:{"content-type":"application/json", "x-api-key":UI.apiKey, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:CLAUDE_MODEL, max_tokens:1024, system:system, messages:msgs, tools:apiTools})});
+      if (!r.ok) throw {status:r.status};
+      const j = await r.json(), blocks = j.content || [];
+      const txt = blocks.filter(b => b.type === "text").map(b => b.text).join("");
+      if (txt) { out += (out ? "\n\n" : "") + txt; show(); }
+      if (j.stop_reason !== "tool_use") break;
+      msgs.push({role:"assistant", content:blocks});
+      const results = [];
+      for (const b of blocks) if (b.type === "tool_use") {
+        const t = tools.find(x => x.name === b.name); let res, bad = false;
+        try { if (!t) throw new Error("Unknown tool"); res = t.execute(b.input || {}); } catch (e) { res = "Error: " + (e && e.message || "failed"); bad = true; }
+        results.push({type:"tool_result", tool_use_id:b.id, content:typeof res === "string" ? res : JSON.stringify(res), is_error:bad});
+      }
+      msgs.push({role:"user", content:results});
+    }
+    if (out) UI.chat.push({role:"assistant", content:out});
+  } catch (e) {
+    if (out) UI.chat.push({role:"assistant", content:out});
+    const st = e && e.status;
+    if (e && e.name === "AbortError") { /* stopped by the user */ }
+    else if (st === 401 || st === 403) UI.note = "Anthropic rejected that API key. Check it under Plan, in Connections.";
+    else if (st === 429) UI.note = "Your API key is rate limited or out of credit. Try again later.";
+    else if (st === 404 || st === 400) UI.note = "Anthropic rejected the request (error " + st + "). The model name in this build may need updating.";
+    else UI.note = "Claude could not be reached. Try again in a moment.";
+  } finally { UI.asking = false; UI.pending = ""; UI.ctl = null; render(); const q = $("#chat-q"); if (q) q.focus(); }
+}
+
+/* ---------- auth and boot ---------- */
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const act = b.dataset.act;
+  if (act === "signin" && window.firebase && !UI.noBackend) {
+    UI.authErr = "";
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e => {
+      const code = e && e.code;
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return;
+      UI.authErr = code === "auth/operation-not-allowed" ? "Google sign-in is not switched on for this Firebase project yet." : code === "auth/popup-blocked" ? "Your browser blocked the sign-in window. Allow pop-ups for this site and try again." : "Sign-in did not complete. Try again.";
+      render();
+    });
+  }
+  else if (act === "signout" && window.firebase) firebase.auth().signOut();
+  else if (act === "saveKeys") {
+    UI.apiKey = ($("#k-claude").value || "").trim(); UI.fdcKey = ($("#k-fdc").value || "").trim();
+    lsSet("fl-anthropic-key", UI.apiKey); lsSet("fl-fdc-key", UI.fdcKey); b.textContent = "Saved";
+  }
+});
+let authGen = 0;
+async function onUser(user){
+  const my = ++authGen;
+  UI.user = user || null; Store.col = null; Store.queue = {}; Store.status = "local";
+  S.profile = null; S.days = {}; S.demo = false; UI.chat = []; UI.draft = null;
+  if (!user) { loadDemo(); UI.loading = false; render(); return; }
+  const cached = Store.readLocal(), hasCache = !!(cached && cached.profile);
+  if (hasCache) { S.profile = cached.profile; S.days = cached.days || {}; UI.loading = false; } else UI.loading = true;
+  render();
+  try {
+    const col = firebase.firestore().collection("users").doc(user.uid).collection("docs");
+    const snap = await withTimeout(col.get(), 15000);
+    if (my !== authGen) return;
+    let rp = null; const rd = {};
+    snap.docs.forEach(doc => { const v = doc.data(); if (!v) return; if (doc.id === "profile") rp = JSON.parse(JSON.stringify(v)); else if (doc.id.indexOf("d-") === 0) { const c = JSON.parse(JSON.stringify(v)); if (!Array.isArray(c.entries)) c.entries = []; rd[doc.id.slice(2)] = c; } });
+    Store.col = col; Store.status = "db";
+    if (rp) { S.profile = rp; S.days = rd; S.demo = false; Store.writeLocal(); }
+    else if (hasCache) { Store.put("profile", S.profile); Object.keys(S.days).forEach(d => Store.put("d-" + d, S.days[d])); }
+  } catch (e) { if (my !== authGen) return; }
+  if (!S.profile) loadDemo();
+  UI.loading = false; render();
+}
+function boot(){
+  const h = location.hash.slice(1); if (["today","trends","coach","plan"].includes(h)) UI.tab = h;
+  UI.apiKey = lsGet("fl-anthropic-key"); UI.fdcKey = lsGet("fl-fdc-key");
+  if (!(window.firebase && firebase.apps && firebase.apps.length)) { UI.noBackend = true; loadDemo(); UI.loading = false; render(); return; }
+  firebase.auth().onAuthStateChanged(onUser, () => onUser(null));
+}
+boot();
+</script>
+</body>
+</html>

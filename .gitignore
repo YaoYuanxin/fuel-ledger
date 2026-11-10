@@ -1,0 +1,7 @@
+# Written by the deploy script; they hold your project ID and support email
+firebase.json
+.firebaserc
+.firebase/
+node_modules/
+*.log
+.DS_Store
