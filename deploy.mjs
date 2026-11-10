@@ -11,10 +11,12 @@ process.chdir(path.dirname(fileURLToPath(import.meta.url)));
 const FB = "npx -y firebase-tools@latest";
 const run = (args, capture = false) => {
   const r = spawnSync(`${FB} ${args}`, { shell: true, encoding: "utf8", stdio: capture ? ["inherit", "pipe", "pipe"] : "inherit" });
-  return { ok: r.status === 0, out: (r.stdout || "") + (r.stderr || "") };
+  return { ok: r.status === 0, out: r.stdout || "", err: r.stderr || "" };
 };
 const step = (n, t) => console.log(`\n[${n}/5] ${t}`);
-const findEmail = s => (s.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/) || [])[0];
+// Only trust the CLI's own "Logged in as <email>" line. npm prints package names such as
+// superstatic@10.0.0 while installing, and those must not be mistaken for an account.
+const findEmail = s => (s.match(/Logged in as\s+([\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,})/i) || [])[1];
 
 step(1, "Checking your Google sign-in for Firebase");
 let email = findEmail(run("login:list", true).out);
@@ -23,7 +25,10 @@ if (!email) {
   run("login");
   email = findEmail(run("login:list", true).out);
 }
-if (!email) { console.error("Could not confirm a Firebase login. Run this script again."); process.exit(1); }
+if (!email) {
+  console.error("Could not confirm a Firebase login. Run:  npx -y firebase-tools@latest login   then run this script again.");
+  process.exit(1);
+}
 console.log(`Signed in as ${email}`);
 
 step(2, "Choosing the Firebase project");
@@ -37,8 +42,10 @@ else {
   console.log(`Creating project ${project}`);
   if (!run(`projects:create ${project} --display-name "Fuel Ledger"`).ok) {
     console.error(`
-Could not create the project automatically. This usually means the Google account has never
-used Firebase and must accept its terms once, or has hit its project limit.
+Could not create the project automatically. If the message above is about authentication, run
+  npx -y firebase-tools@latest login --reauth
+and try again. Otherwise the Google account has probably never used Firebase and must accept
+its terms once, or has hit its project limit.
 Fix: open https://console.firebase.google.com, click "Create a project" (any name, Analytics off),
 then run this script again with that project's ID:   node deploy.mjs your-project-id`);
     process.exit(1);
