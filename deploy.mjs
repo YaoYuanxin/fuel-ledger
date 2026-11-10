@@ -36,22 +36,41 @@ let project = process.argv[2];
 if (!project && fs.existsSync(".firebaserc")) {
   try { project = JSON.parse(fs.readFileSync(".firebaserc", "utf8")).projects.default; } catch {}
 }
-if (project) console.log(`Using project ${project}`);
-else {
+const saveProject = () => fs.writeFileSync(".firebaserc", JSON.stringify({ projects: { default: project } }, null, 2));
+// IDs of projects that already have Firebase switched on, or null if the list can't be read.
+const firebaseProjects = () => {
+  const out = run("projects:list --json", true).out;
+  try { return (JSON.parse(out.slice(out.indexOf("{"))).result || []).map(p => p.projectId); } catch { return null; }
+};
+const create = () => run(`projects:create ${project} --display-name "Fuel Ledger"`).ok;
+const addFirebase = () => run(`projects:addfirebase ${project}`).ok;
+const stuck = () => {
+  saveProject(); // the next run picks this project up again instead of creating another one
+  console.error(`
+Firebase could not be switched on for ${project} from the command line. The usual cause is a
+Google account that has never used Firebase: its terms have to be accepted once, in the browser.
+Fix:
+  1. Open https://console.firebase.google.com and accept the terms if asked.
+  2. Click "Create a project" (or "Add project"), choose "Add Firebase to Google Cloud project",
+     and pick ${project} from the list. Turn Analytics off.
+  3. Run   node deploy.mjs   again. It will carry on with ${project}.
+If the message above is about authentication instead, run
+  npx -y firebase-tools@latest login --reauth`);
+  process.exit(1);
+};
+if (project) {
+  console.log(`Using project ${project}`);
+  const list = firebaseProjects();
+  if (list && !list.includes(project)) {
+    console.log("Firebase is not switched on for it yet. Trying now.");
+    if (!addFirebase() && !create()) stuck();
+  }
+} else {
   project = "fuel-ledger-" + Math.random().toString(36).slice(2, 8);
   console.log(`Creating project ${project}`);
-  if (!run(`projects:create ${project} --display-name "Fuel Ledger"`).ok) {
-    console.error(`
-Could not create the project automatically. If the message above is about authentication, run
-  npx -y firebase-tools@latest login --reauth
-and try again. Otherwise the Google account has probably never used Firebase and must accept
-its terms once, or has hit its project limit.
-Fix: open https://console.firebase.google.com, click "Create a project" (any name, Analytics off),
-then run this script again with that project's ID:   node deploy.mjs your-project-id`);
-    process.exit(1);
-  }
+  if (!create() && !addFirebase()) stuck();
 }
-fs.writeFileSync(".firebaserc", JSON.stringify({ projects: { default: project } }, null, 2));
+saveProject();
 fs.writeFileSync("firebase.json", JSON.stringify({
   hosting: {
     public: "public",
