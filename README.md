@@ -41,6 +41,7 @@ accept its terms once.
 
 - Deploy into a project you already have: `node deploy.mjs your-project-id`
 - Push an update later: run `node deploy.mjs` again. It reuses the saved project.
+- Google sign-in already enabled in the Firebase console: add `--skip-auth`.
 
 ## Files
 

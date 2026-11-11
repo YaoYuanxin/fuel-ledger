@@ -1,6 +1,7 @@
 // Fuel Ledger: one-command deploy to Firebase (Hosting + Firestore + Google sign-in).
 // Usage:  node deploy.mjs                 create a new Firebase project and deploy
 //         node deploy.mjs my-project-id   deploy to a project that already exists
+//         add --skip-auth if Google sign-in is already enabled in the Firebase console
 // Later runs reuse the project saved in .firebaserc, so updating the app is just: node deploy.mjs
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -32,7 +33,11 @@ if (!email) {
 console.log(`Signed in as ${email}`);
 
 step(2, "Choosing the Firebase project");
-let project = process.argv[2];
+const args = process.argv.slice(2);
+// Google sign-in already switched on in the console? Pass --skip-auth (or keep a file named
+// .skip-auth next to this script) and the script leaves the sign-in settings alone.
+const skipAuth = args.includes("--skip-auth") || fs.existsSync(".skip-auth");
+let project = args.find(a => !a.startsWith("--"));
 if (!project && fs.existsSync(".firebaserc")) {
   try { project = JSON.parse(fs.readFileSync(".firebaserc", "utf8")).projects.default; } catch {}
 }
@@ -71,15 +76,16 @@ if (project) {
   if (!create() && !addFirebase()) stuck();
 }
 saveProject();
-fs.writeFileSync("firebase.json", JSON.stringify({
+const config = {
   hosting: {
     public: "public",
     ignore: ["firebase.json", "**/.*"],
     headers: [{ source: "**", headers: [{ key: "Cache-Control", value: "no-cache" }] }]
   },
-  firestore: { rules: "firestore.rules" },
-  auth: { providers: { googleSignIn: { oAuthBrandDisplayName: "Fuel Ledger", supportEmail: email } } }
-}, null, 2));
+  firestore: { rules: "firestore.rules" }
+};
+if (!skipAuth) config.auth = { providers: { googleSignIn: { oAuthBrandDisplayName: "Fuel Ledger", supportEmail: email } } };
+fs.writeFileSync("firebase.json", JSON.stringify(config, null, 2));
 
 step(3, "Creating the database (skipped if it already exists)");
 const dbr = run(`firestore:databases:create "(default)" --location nam5 --project ${project}`, true);
@@ -95,10 +101,13 @@ https://console.firebase.google.com/project/${project}/firestore , click "Create
 }
 
 step(5, "Switching on Google sign-in");
-const authOk = run(`deploy --only auth --project ${project}`).ok;
+let authOk = true;
+if (skipAuth) console.log("Skipped: Google sign-in is already set up in the console.");
+else authOk = run(`deploy --only auth --project ${project}`).ok;
 
 console.log(`\nDone. Your app: https://${project}.web.app`);
 if (!authOk) console.log(`
-One manual step left: Google sign-in could not be switched on from the command line.
-Open https://console.firebase.google.com/project/${project}/authentication/providers ,
-click "Get started" if shown, choose Google, turn on Enable, pick your support email, Save.`);
+Google sign-in could not be switched on from the command line. Open
+https://console.firebase.google.com/project/${project}/authentication/providers
+If Google already shows as Enabled there, nothing more is needed. Otherwise click "Get started"
+if shown, choose Google, turn on Enable, pick your support email, Save.`);
